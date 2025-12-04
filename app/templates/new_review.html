@@ -59,9 +59,13 @@
         <textarea name="notes" placeholder="Notes (optional)"
             class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] h-16 shadow"></textarea>
 
-		<label class="block text-xs text-[#f7f2e9] mb-1">Visit date</label>
-		<input type="date" name="visit_date"
-       class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] shadow" required placeholder="Tap to pick a date">
+		<!-- Visit date -->
+		<div class="relative">
+			<input type="date" name="visit_date"
+				   class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] shadow pr-10"
+				   required>
+			<span class="absolute right-3 top-3 text-[#e8dfd1] pointer-events-none">📅</span>
+		</div>
 
 
         <!-- Hidden identity -->
