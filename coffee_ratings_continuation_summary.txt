@@ -1,0 +1,84 @@
+Coffee Ratings App – Continuation Summary
+
+1. Project Purpose
+
+Mobile-first web app to rate local cafés.
+
+2. Tech Stack
+
+-   FastAPI
+-   Jinja2
+-   Tailwind CSS
+-   SQLite via SQLAlchemy ORM
+
+3. UI Style
+
+-   Dark caramel palette (#4b3621 background)
+-   Light cream text (#f7f2e9)
+-   Rounded elements
+-   Consistent header with back arrow, logo, title
+-   No header on Home page
+
+4. Navigation Rules (marker-based)
+
+Home
+
+-   Buttons: Venues, Reviews, Add Review
+-   No header
+
+Venues List (/venues)
+
+-   Entered from Home
+-   Back = Home
+-   Each venue link: /venues/{id}?from=venues
+
+All Reviews (/reviews)
+
+-   Entered from Home
+-   Back = Home
+-   Each venue link: /venues/{id}?from=reviews
+
+Single Venue (/venues/{id}?from=xxx)
+
+-   If from=venues → Back = /venues
+-   If from=reviews → Back = /reviews
+-   Add Review link → /reviews/new?venue_id={id}&from=xxx
+
+Add Review (/reviews/new?venue_id=X&from=xxx)
+
+-   If venue_id provided → Back to venue page preserving marker
+-   If no venue_id → Back = Home
+
+After submitting review
+
+-   Redirect to /reviews
+
+5. Templates Overview
+
+-   base.html: header logic, back_url, title, logo
+-   home.html: no header
+-   venues.html: list with ratings
+-   venue_detail.html: detailed scores, back logic uses marker
+-   reviews.html: list of all reviews
+-   new_review.html: review form; auto-save reviewer name
+
+6. Rating Icons
+
+-   Full cup: ☕
+-   Empty: ⚪
+
+7. Database Schema (SQLite)
+
+Tables: venues, reviews Fields include averages and reviewer_name.
+
+8. Current Known-Good Behaviour
+
+All navigation works without double clicks. Consistent header across
+pages. Add Review inherits markers.
+
+9. Next Steps
+
+-   PWA packaging
+-   Deploy to Render
+-   Offline caching
+-   HTMX enhancements

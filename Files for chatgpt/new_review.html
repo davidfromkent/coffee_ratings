@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-md mx-auto space-y-6">
+
+    <form action="/reviews/new" method="post" class="space-y-6" id="reviewForm" onsubmit="return validateNameAndStore()">
+
+        <!-- Reviewer name section -->
+        <div id="name-section" class="mb-4">
+            <label class="block text-[#e8dfd1] text-sm mb-1">Your name</label>
+            <input type="text" id="reviewer_name" name="reviewer_name"
+               class="w-full p-3 rounded-lg bg-[#f7f2e9] text-[#4b3621] shadow outline-none"
+               placeholder="Forename Surname" required>
+            <p id="name-error" class="text-red-300 text-xs mt-1 hidden">
+                Please enter your full name (at least two words, letters only).
+            </p>
+        </div>
+
+        <!-- Venue name + location -->
+        <div class="space-y-4">
+            <input type="text"
+                name="venue_name"
+                placeholder="Venue name"
+                value="{{ venue.name if venue else '' }}"
+                required
+                class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] shadow"/>
+
+            <input type="text"
+                name="location"
+                placeholder="Location"
+                value="{{ venue.location if venue else '' }}"
+                required
+                class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] shadow"/>
+        </div>
+
+        <!-- SCORES CARD -->
+        <div class="bg-[#6d4c41] rounded-xl shadow p-4 space-y-3">
+
+            <h3 class="text-[#f7f2e9] text-lg font-semibold mb-1">Scores</h3>
+
+            <div class="grid grid-cols-2 gap-3">
+
+                {% for category in ["coffee","cost","service","hygiene","ambience"] %}
+                <div>
+                    <label class="block text-xs text-[#f7f2e9] mb-1">
+						{% if category == "cost" %}Value{% else %}{{ category.capitalize() }}{% endif %}
+                    </label>
+                    <select name="{{ category }}"
+                        class="w-full rounded-lg p-2 bg-[#4b3621] text-[#f7f2e9]"
+                        required>
+                        <option value="" disabled selected hidden>Select</option>
+                        {% for s in [5,4,3,2,1] %}
+                        <option value="{{ s }}">{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+
+                <!-- Food -->
+                <div>
+                    <label class="block text-xs text-[#f7f2e9] mb-1">Food (or N/A)</label>
+                    <select name="food"
+                        class="w-full rounded-lg p-2 bg-[#4b3621] text-[#f7f2e9]"
+                        required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option>
+                        <option value="4">4</option>
+                        <option value="3">3</option>
+                        <option value="2">2</option>
+                        <option value="1">1</option>
+                        <option value="0">N/A</option>
+                    </select>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <textarea name="notes"
+            placeholder="Notes (optional)"
+            class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] h-16 shadow"></textarea>
+
+        <!-- Visit date -->
+        <input type="date"
+            name="visit_date"
+            class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] shadow"
+            required/>
+
+		<!-- Hidden identity field posted to server -->
+		<input type="hidden" id="identity_pin" name="identity_pin">
+
+        <!-- Identity: Change Name link and PIN unlock section -->
+        <a id="changeNameBtn"
+           class="hidden text-[#e8dfd1] text-xs underline hover:text-white mb-2 cursor-pointer">
+            Change name
+        </a>
+
+        <div id="pin-section" class="hidden mt-3">
+			<p class="text-[#e8dfd1] text-xs mb-1">
+				Your PIN: <span id="pin_display" class="font-semibold"></span>
+			</p>
+			<p class="text-[#e8dfd1] text-xs mb-1">
+				Enter your identity PIN to edit your name:
+			</p>
+            <input type="number" id="pin_input"
+                class="w-full p-2 rounded bg-[#f7f2e9] text-[#4b3621] text-sm outline-none"
+                placeholder="6 digit PIN">
+            <p id="pin-error" class="text-red-300 text-xs mt-1 hidden">
+                Incorrect PIN. Try again.
+            </p>
+            <button type="button" id="unlockBtn"
+                class="mt-2 text-xs bg-[#6d4c41] text-[#f7f2e9] py-1 px-3 rounded shadow">
+                Unlock
+            </button>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit"
+            class="w-full bg-[#6d4c41] text-[#f7f2e9] py-3 rounded-xl font-semibold hover:bg-[#5d4037] shadow">
+            Save Review
+        </button>
+
+    </form>
+</div>
+
+<script>
+// Store and retrieve reviewer name
+function getStoredName() {
+    return localStorage.getItem("reviewer_name") || "";
+}
+
+function setStoredName(name) {
+    localStorage.setItem("reviewer_name", name);
+}
+
+// Identity PIN functions
+function getStoredPIN() {
+    return localStorage.getItem("identity_pin") || "";
+}
+
+function generatePIN() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function setStoredPIN(pin) {
+    localStorage.setItem("identity_pin", pin);
+}
+
+
+// Show name field only first time, and always set identity_pin hidden field
+document.addEventListener("DOMContentLoaded", function () {
+    const storedName = getStoredName();
+    const nameSection = document.getElementById("name-section");
+    const nameField = document.getElementById("reviewer_name");
+
+    if (storedName) {
+        nameField.value = storedName;
+        nameSection.style.display = "none";
+    }
+
+    const storedPIN = getStoredPIN();
+    if (storedPIN) {
+        document.getElementById("identity_pin").value = storedPIN;
+    }
+});
+
+
+// Validate name + store name and PIN
+function validateNameAndStore() {
+    const nameField = document.getElementById("reviewer_name");
+    const nameSection = document.getElementById("name-section");
+    const error = document.getElementById("name-error");
+
+    // If name already stored, just set PIN and submit
+    if (nameSection.style.display === "none") {
+        document.getElementById("identity_pin").value = getStoredPIN();
+        return true;
+    }
+
+    let name = nameField.value.trim();
+    const parts = name.split(/\s+/);
+
+    if (parts.length < 2) {
+        error.classList.remove("hidden");
+        return false;
+    }
+
+    for (let p of parts) {
+        if (!/^[A-Za-zÀ-ÖØ-öø-ÿ'-]{2,}$/.test(p)) {
+            error.classList.remove("hidden");
+            return false;
+        }
+    }
+
+    error.classList.add("hidden");
+
+    // Capitalise properly
+    parts.forEach((p, i) => {
+        parts[i] = p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+    });
+    name = parts.join(" ");
+    nameField.value = name;
+
+    // Store name and PIN if needed
+    setStoredName(name);
+
+    if (!getStoredPIN()) {
+        setStoredPIN(generatePIN());
+    }
+
+    // Always attach PIN before submit
+    document.getElementById("identity_pin").value = getStoredPIN();
+    return true;
+}
+
+
+
+// Show change name button only when name stored
+document.addEventListener("DOMContentLoaded", function() {
+    const changeBtn = document.getElementById("changeNameBtn");
+
+    if (getStoredName()) {
+        changeBtn.classList.remove("hidden");
+    }
+});
+
+// PIN unlock logic
+document.getElementById("changeNameBtn").addEventListener("click", () => {
+    const pin = getStoredPIN();
+    document.getElementById("pin_display").textContent = pin;
+    document.getElementById("pin-section").classList.remove("hidden");
+});
+
+
+document.getElementById("unlockBtn").addEventListener("click", function() {
+    const inputPIN = document.getElementById("pin_input").value.trim();
+    const storedPIN = getStoredPIN();
+    const nameSection = document.getElementById("name-section");
+    const pinSection = document.getElementById("pin-section");
+    const error = document.getElementById("pin-error");
+
+    if (inputPIN === storedPIN) {
+        error.classList.add("hidden");
+        pinSection.classList.add("hidden");
+        nameSection.style.display = "block";
+    } else {
+        error.classList.remove("hidden");
+    }
+});
+</script>
+
+{% endblock %}

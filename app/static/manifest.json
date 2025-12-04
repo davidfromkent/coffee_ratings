@@ -1,0 +1,21 @@
+{
+  "name": "Coffee Ratings",
+  "short_name": "Coffee",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#4b3621",
+  "theme_color": "#4b3621",
+  "icons": [
+    {
+      "src": "/static/img/dfd_logo_256.png",
+      "type": "image/png",
+      "sizes": "256x256"
+    },
+    {
+      "src": "/static/img/dfd_logo_512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

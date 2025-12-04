@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+{% import "cup_macros.html" as cups %}
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title if title else "Coffee Ratings" }}</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/static/img/dfd_logo_64.png">
+</head>
+
+<body class="bg-[#4b3621] min-h-screen text-[#f7f2e9]">
+
+    {% if title %}
+    <!-- HEADER BAR (all non-home pages) -->
+    <header class="w-full bg-[#4b3621]">
+        <div class="max-w-md mx-auto px-3 py-4 flex items-center">
+
+            {% if back_url %}
+            <!-- Back arrow with nice tap area -->
+            <a href="{{ back_url }}"
+               class="text-[#f7f2e9] text-2xl pr-3 -ml-1 py-3">
+                ←
+            </a>
+            {% endif %}
+
+            <!-- Logo -->
+            <img src="/static/img/dfd_logo_48.png"
+                 alt="Logo"
+                 class="h-16 w-16 rounded-full opacity-90 mr-3">
+
+            <!-- Page title: larger, like your in-form title -->
+            <h1 class="text-3xl font-bold tracking-wide leading-tight">
+                {{ title }}
+            </h1>
+
+        </div>
+    </header>
+    {% endif %}
+
+    <!-- MAIN CONTENT -->
+    <main class="max-w-md mx-auto px-3 py-6">
+        {% block content %}{% endblock %}
+    </main>
+	
+	<footer class="text-center text-[#e8dfd1] text-xs mt-10 opacity-70">
+		A DFD project © 2025
+	</footer>
+	
+</body>
+</html>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% import "cup_macros.html" as cups %}
+
+{% block content %}
+
+<h2 class="text-xl font-semibold text-[#f7f2e9] mb-4">
+    Reviews
+</h2>
+
+<!-- Search and sort controls -->
+<form method="get" action="/reviews" class="mb-4 flex gap-2">
+    <input type="text"
+           name="q"
+           placeholder="Search café name"
+           value="{{ search_query or '' }}"
+           class="flex-1 rounded-lg p-2 bg-[#f7f2e9] text-[#4b3621] shadow"
+    >
+
+    <select name="sort"
+            onchange="this.form.submit()"
+            class="rounded-lg p-2 bg-[#6d4c41] text-[#f7f2e9] shadow">
+        <option value="">Sort by</option>
+        <option value="high" {% if sort == 'high' %}selected{% endif %}>Highest rated</option>
+        <option value="low" {% if sort == 'low' %}selected{% endif %}>Lowest rated</option>
+    </select>
+</form>
+
+{% if reviews|length == 0 %}
+<p class="text-[#e8dfd1] text-sm">
+    No reviews found.
+</p>
+
+{% else %}
+<div class="flex flex-col gap-4">
+
+    {% for r in reviews %}
+    <div class="bg-[#f7f2e9] rounded-xl p-4 shadow text-[#4b3621]">
+
+        <!-- Venue name and location -->
+        <a href="/venues/{{ r.venue.id }}"
+           class="text-lg font-semibold hover:underline">
+            {{ r.venue.name }}
+        </a>
+        <span class="text-sm text-[#6d5742]"> • {{ r.venue.location }}</span>
+
+        <!-- Cup rating -->
+        <div class="flex items-center gap-2 mt-2">
+            {% if r.venue.avg_total_score %}
+                {{ cups.render_cups(r.venue.avg_total_score) }}
+                <span class="text-sm font-semibold">
+                    {{ "%.1f"|format(r.venue.avg_total_score) }}
+                </span>
+            {% endif %}
+        </div>
+
+        <!-- Category grid -->
+        <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-2 text-sm text-[#6d5742]">
+            <p>Coffee: {{ r.coffee }}</p>
+            <p>Value: {{ r.cost }}</p>
+            <p>Service: {{ r.service }}</p>
+            <p>Hygiene: {{ r.hygiene }}</p>
+            <p>Ambience: {{ r.ambience }}</p>
+            <p>
+                {% if r.food == 0 %}
+                    Food: N/A
+                {% else %}
+                    Food: {{ r.food }}
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Notes -->
+        {% if r.notes %}
+        <p class="text-sm italic mt-2">{{ r.notes }}</p>
+        {% endif %}
+
+        <!-- Reviewer and date -->
+        {% set d = r.visit_date.split("-") %}
+        <p class="text-xs text-[#4b3621] mt-3">
+            {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
+        </p>
+
+    </div>
+    {% endfor %}
+
+</div>
+{% endif %}
+
+{% endblock %}

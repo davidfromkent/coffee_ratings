@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set home_page = True %}
+
+{% block content %}
+
+<!-- Big centered logo -->
+<div class="flex flex-col items-center mt-10 mb-8">
+
+    <img src="/static/img/dfd_logo_512.png"
+         alt="Coffee Ratings Logo"
+         class="w-40 h-40 rounded-full shadow-lg opacity-95 mb-4">
+
+    <h1 class="text-3xl font-bold text-[#f7f2e9] tracking-wide text-center">
+        Coffee Ratings
+    </h1>
+
+    <p class="text-[#e8dfd1] text-sm mt-2 text-center">
+        Your local café review companion
+    </p>
+</div>
+
+<!-- Navigation buttons -->
+<div class="flex flex-col gap-4 mt-6 px-4">
+
+    <a href="/venues"
+       class="block text-center bg-[#f7f2e9] text-[#4b3621] py-3 rounded-xl shadow font-semibold hover:bg-white transition">
+        Browse Venues
+    </a>
+
+    <a href="/reviews"
+       class="block text-center bg-[#f7f2e9] text-[#4b3621] py-3 rounded-xl shadow font-semibold hover:bg-white transition">
+        All Reviews
+    </a>
+
+    <a href="/reviews/new"
+       class="block text-center bg-[#6d4c41] text-[#f7f2e9] py-3 rounded-xl shadow font-semibold hover:bg-[#5d4037] transition">
+        Add a Review
+	</a>
+
+</div>
+
+{% endblock %}

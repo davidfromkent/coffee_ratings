@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "cup_macros.html" as cups %}
+
+{% block content %}
+
+{% if venues|length == 0 %}
+<p class="text-[#e8dfd1] text-sm">No venues yet.</p>
+
+{% else %}
+<div class="flex flex-col gap-4">
+
+    {% for v in venues %}
+    <a href="/venues/{{ v.id }}"
+       class="block bg-[#f7f2e9] rounded-xl p-4 shadow hover:bg-white transition">
+
+        <h2 class="text-lg font-semibold text-[#4b3621] mb-1">
+            {{ v.name }}
+        </h2>
+
+        <p class="text-sm text-[#6d5742] mb-2">
+            {{ v.location }}
+        </p>
+
+        <div class="flex items-center">
+            {{ cups.render_cups(v.avg_total_score or 0) }}
+            <span class="text-[#6d5742] text-sm ml-2">
+                {{ (v.avg_total_score or 0)|round(1) }}/5
+            </span>
+        </div>
+
+    </a>
+    {% endfor %}
+
+</div>
+{% endif %}
+
+{% endblock %}

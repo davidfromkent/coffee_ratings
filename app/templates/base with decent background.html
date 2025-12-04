@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title if title else "Coffee Ratings" }}</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/static/img/dfd_logo_64.png">
+
+</head>
+
+<body class="bg-[#4b3621] min-h-screen">
+
+    {% if not home_page %}
+    <!-- HEADER BAR -->
+    <header class="w-full bg-[#4b3621] shadow-md py-3">
+        <div class="max-w-md mx-auto px-3 flex items-center justify-between">
+
+            <!-- Left spacer (logo removed) -->
+            <div class="h-12 w-12"></div>
+
+            <!-- Centered title -->
+            <h1 class="text-[#f7f2e9] text-xl font-semibold absolute left-1/2 transform -translate-x-1/2">
+                {{ title }}
+            </h1>
+
+            <!-- Right spacer -->
+            <div class="h-12 w-12"></div>
+
+        </div>
+    </header>
+    {% endif %}
+
+    <!-- MAIN CONTENT -->
+    <main class="max-w-md mx-auto px-3 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+</body>
+</html>

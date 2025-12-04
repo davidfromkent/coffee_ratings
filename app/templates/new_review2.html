@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-neutral-100">
+
+<div class="max-w-md mx-auto p-6 space-y-6">
+
+    <h1 class="text-3xl font-bold">Add a Review</h1>
+
+    <form action="/reviews/new" method="post" class="space-y-6">
+
+        <div class="space-y-4">
+            <input type="text"
+                name="venue_name"
+                placeholder="Venue name"
+                value="{{ venue.name if venue else '' }}"
+                required
+                class="w-full rounded-lg border border-gray-300 p-3"/>
+
+            <input type="text"
+                name="location"
+                placeholder="Location"
+                value="{{ venue.location if venue else '' }}"
+                required
+                class="w-full rounded-lg border border-gray-300 p-3"/>
+        </div>
+
+        <!-- SCORES CARD -->
+        <div class="bg-white rounded-xl shadow-sm p-4 space-y-4">
+
+            <h3 class="text-lg font-semibold">Scores</h3>
+
+            <div class="grid grid-cols-2 gap-4">
+
+                <div>
+                    <label class="block text-xs font-medium mb-1">Coffee</label>
+                    <select name="coffee" class="w-full rounded-lg border border-gray-300 p-2.5" required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option><option value="4">4</option>
+                        <option value="3">3</option><option value="2">2</option>
+                        <option value="1">1</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1">Cost</label>
+                    <select name="cost" class="w-full rounded-lg border border-gray-300 p-2.5" required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option><option value="4">4</option>
+                        <option value="3">3</option><option value="2">2</option>
+                        <option value="1">1</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1">Service</label>
+                    <select name="service" class="w-full rounded-lg border border-gray-300 p-2.5" required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option><option value="4">4</option>
+                        <option value="3">3</option><option value="2">2</option>
+                        <option value="1">1</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1">Hygiene</label>
+                    <select name="hygiene" class="w-full rounded-lg border border-gray-300 p-2.5" required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option><option value="4">4</option>
+                        <option value="3">3</option><option value="2">2</option>
+                        <option value="1">1</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1">Ambience</label>
+                    <select name="ambience" class="w-full rounded-lg border border-gray-300 p-2.5" required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option><option value="4">4</option>
+                        <option value="3">3</option><option value="2">2</option>
+                        <option value="1">1</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1">Food (or N/A)</label>
+                    <select name="food" class="w-full rounded-lg border border-gray-300 p-2.5" required>
+                        <option value="" disabled selected hidden>Select</option>
+                        <option value="5">5</option><option value="4">4</option>
+                        <option value="3">3</option><option value="2">2</option>
+                        <option value="1">1</option><option value="0">N/A</option>
+                    </select>
+                </div>
+            </div>
+
+        </div>
+
+        <textarea name="notes"
+                  placeholder="Notes (optional)"
+                  class="w-full rounded-lg border border-gray-300 p-3 h-16"></textarea>
+
+        <input type="date"
+               name="visit_date"
+               class="w-full rounded-lg border border-gray-300 p-3"
+               required/>
+
+        <button type="submit"
+                class="w-full bg-amber-600 text-white py-3 rounded-lg font-semibold">
+            Save Review
+        </button>
+
+    </form>
+
+    <a href="/reviews" class="inline-block text-amber-700 underline text-sm">
+        Back to Reviews
+    </a>
+
+</div>
+
+</body>
+</html>
