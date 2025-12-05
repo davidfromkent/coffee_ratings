@@ -225,6 +225,7 @@ def create_review(
         db.commit()
         db.refresh(venue)
 
+    # Calculate score components
     scores = [coffee, cost, service, hygiene, ambience]
     if food != 0:
         scores.append(food)
@@ -232,6 +233,24 @@ def create_review(
     total_score = sum(scores)
     category_count = len(scores)
 
+    # Duplicate review check
+    existing_review = db.query(models.Review).filter(
+        models.Review.reviewer_name == reviewer_name,
+        models.Review.venue_name_raw == venue_name,
+        models.Review.visit_date == visit_date,
+    ).first()
+
+    if existing_review:
+        return templates.TemplateResponse(
+            "duplicate_prompt.html",
+            {
+                "request": request,
+                "venue_name": venue_name,
+                "visit_date": visit_date,
+            }
+        )
+
+    # Create new review
     review = models.Review(
         venue_id=venue.id,
         venue_name_raw=venue_name,
@@ -256,3 +275,4 @@ def create_review(
     update_venue_averages(db, venue.id)
 
     return RedirectResponse(url="/reviews", status_code=303)
+

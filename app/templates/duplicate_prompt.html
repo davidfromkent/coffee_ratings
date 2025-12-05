@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="text-center mt-10 text-[#f7f2e9] space-y-6">
+
+    <h2 class="text-xl font-bold">
+        You already reviewed {{ venue_name }} on {{ visit_date }}.
+    </h2>
+
+    <p class="text-sm">
+        You can only submit one review per visit date.
+    </p>
+
+    <a href="/reviews/new"
+       class="block bg-[#6d4c41] py-3 rounded-lg font-semibold shadow">
+       Go back
+    </a>
+
+</div>
+{% endblock %}
