@@ -65,6 +65,7 @@
         <div class="relative">
             <input type="date" name="visit_date"
                    class="w-full rounded-lg p-3 pt-2 bg-[#6d4c41] text-[#f7f2e9] shadow pr-10"
+				   max=""
                    required>
             <span class="absolute right-3 top-3 text-[#e8dfd1] pointer-events-none">📅</span>
         </div>
@@ -116,6 +117,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const unlockBtn = document.getElementById("unlockBtn");
 
     const storedName = localStorage.getItem("reviewer_name");
+	document.querySelector('input[name="visit_date"]').max = new Date().toISOString().split("T")[0];
     let storedPIN = localStorage.getItem("identity_pin");
 
     if (!storedPIN) {

@@ -124,6 +124,7 @@ def list_reviews(
     request: Request,
     q: Optional[str] = None,
     sort: Optional[str] = None,
+    msg: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Review).join(models.Venue)
@@ -152,6 +153,7 @@ def list_reviews(
             "back_url": "/",
             "search_query": search_query,
             "sort": sort,
+            "msg": msg,
         },
     )
 
@@ -317,7 +319,7 @@ def create_review(
 
     update_venue_averages(db, venue.id)
 
-    return RedirectResponse(url="/reviews", status_code=303)
+    return RedirectResponse(url="/reviews?msg=updated", status_code=303)
 
 
 # CONFIRM UPDATE EXISTING DUPLICATE
@@ -378,7 +380,8 @@ def duplicate_update(
 
     update_venue_averages(db, venue_id)
 
-    return RedirectResponse(url="/reviews", status_code=303)
+    return RedirectResponse(url="/reviews?msg=updated", status_code=303)
+
 
 
 # CANCEL DUPLICATE (DO NOTHING)
@@ -386,4 +389,4 @@ def duplicate_update(
 def duplicate_cancel(
     request: Request,
 ):
-    return RedirectResponse(url="/reviews/new", status_code=303)
+    return RedirectResponse(url="/reviews/new?msg=cancelled", status_code=303)
