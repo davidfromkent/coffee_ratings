@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from typing import Optional
 
 from .dependencies import get_db
@@ -201,19 +202,39 @@ def check_duplicate(
     identity_pin: str,
     db: Session = Depends(get_db),
 ):
+    venue_name_clean = (venue_name or "").strip()
+    location_clean = (location or "").strip()
+
     venue = db.query(models.Venue).filter(
-        models.Venue.name.ilike(venue_name),
-        models.Venue.location.ilike(location)
+        models.Venue.name.ilike(venue_name_clean),
+        models.Venue.location.ilike(location_clean)
     ).first()
 
+    # If venue does not exist yet, it cannot be a duplicate
     if not venue:
         return {"duplicate": False}
 
+    # First try the strict rule (same venue_id)
     exists = db.query(models.Review).filter(
         models.Review.venue_id == venue.id,
         models.Review.identity_pin == identity_pin,
-        models.Review.visit_date == visit_date
+        or_(
+            models.Review.visit_date == visit_date,
+            models.Review.visit_date.like(f"{visit_date}%"),
+        ),
     ).first()
+
+    # Fallback: if live has duplicate Venue rows, also check by raw text
+    if not exists:
+        exists = db.query(models.Review).filter(
+            models.Review.identity_pin == identity_pin,
+            or_(
+                models.Review.visit_date == visit_date,
+                models.Review.visit_date.like(f"{visit_date}%"),
+            ),
+            func.lower(models.Review.venue_name_raw) == venue_name_clean.lower(),
+            func.lower(models.Review.venue_location_raw) == location_clean.lower(),
+        ).first()
 
     return {"duplicate": exists is not None}
 
@@ -240,16 +261,19 @@ def create_review(
     if not identity_pin or identity_pin.strip() == "":
         identity_pin = "000000"
 
+    venue_name_clean = (venue_name or "").strip()
+    location_clean = (location or "").strip()
+
     # Find or create venue
     existing = db.query(models.Venue).filter(
-        models.Venue.name.ilike(venue_name),
-        models.Venue.location.ilike(location),
+        models.Venue.name.ilike(venue_name_clean),
+        models.Venue.location.ilike(location_clean),
     ).first()
 
     if existing:
         venue = existing
     else:
-        venue = models.Venue(name=venue_name, location=location)
+        venue = models.Venue(name=venue_name_clean, location=location_clean)
         db.add(venue)
         db.commit()
         db.refresh(venue)
@@ -263,12 +287,28 @@ def create_review(
     category_count = len(scores)
 
     # Duplicate review check (RULES)
-    # One review per user per day per venue, user is identity_pin, venue is venue.id, day is visit_date
+    # One review per user per day per venue
+    # Primary check uses venue_id
     existing_review = db.query(models.Review).filter(
         models.Review.identity_pin == identity_pin,
         models.Review.venue_id == venue.id,
-        models.Review.visit_date == visit_date,
+        or_(
+            models.Review.visit_date == visit_date,
+            models.Review.visit_date.like(f"{visit_date}%"),
+        ),
     ).first()
+
+    # Fallback: if live has duplicate Venue rows, also match by raw venue text
+    if not existing_review:
+        existing_review = db.query(models.Review).filter(
+            models.Review.identity_pin == identity_pin,
+            or_(
+                models.Review.visit_date == visit_date,
+                models.Review.visit_date.like(f"{visit_date}%"),
+            ),
+            func.lower(models.Review.venue_name_raw) == venue_name_clean.lower(),
+            func.lower(models.Review.venue_location_raw) == location_clean.lower(),
+        ).first()
 
     if existing_review:
         # Show a prompt offering Update or Cancel
@@ -279,9 +319,9 @@ def create_review(
                 "message_primary": "You can only leave one review per venue per day.",
                 "message_secondary": "You’ve already reviewed this place on that date. Would you like to update your existing review instead?",
                 "existing_review_id": existing_review.id,
-                "venue_id": venue.id,
-                "venue_name": venue_name,
-                "location": location,
+                "venue_id": existing_review.venue_id,
+                "venue_name": venue_name_clean,
+                "location": location_clean,
                 "reviewer_name": reviewer_name,
                 "identity_pin": identity_pin,
                 "visit_date": visit_date,
@@ -298,8 +338,8 @@ def create_review(
     # Create new review
     review = models.Review(
         venue_id=venue.id,
-        venue_name_raw=venue_name,
-        venue_location_raw=location,
+        venue_name_raw=venue_name_clean,
+        venue_location_raw=location_clean,
         reviewer_name=reviewer_name,
         identity_pin=identity_pin,
         coffee=coffee,
@@ -319,7 +359,8 @@ def create_review(
 
     update_venue_averages(db, venue.id)
 
-    return RedirectResponse(url="/reviews?msg=updated", status_code=303)
+    # New review created, do not show "updated" banner
+    return RedirectResponse(url="/reviews", status_code=303)
 
 
 # CONFIRM UPDATE EXISTING DUPLICATE
@@ -351,7 +392,7 @@ def duplicate_update(
         return RedirectResponse(url="/reviews/new", status_code=303)
 
     # Guard: ensure the review being updated really belongs to this user and venue and date
-    if review.identity_pin != identity_pin or review.venue_id != venue_id or review.visit_date != visit_date:
+    if review.identity_pin != identity_pin or review.venue_id != venue_id or str(review.visit_date) != str(visit_date):
         return RedirectResponse(url="/reviews/new", status_code=303)
 
     scores = [coffee, cost, service, hygiene, ambience]
@@ -363,8 +404,8 @@ def duplicate_update(
 
     # Update the existing record in place
     review.reviewer_name = reviewer_name
-    review.venue_name_raw = venue_name
-    review.venue_location_raw = location
+    review.venue_name_raw = (venue_name or "").strip()
+    review.venue_location_raw = (location or "").strip()
     review.coffee = coffee
     review.cost = cost
     review.service = service
@@ -381,7 +422,6 @@ def duplicate_update(
     update_venue_averages(db, venue_id)
 
     return RedirectResponse(url="/reviews?msg=updated", status_code=303)
-
 
 
 # CANCEL DUPLICATE (DO NOTHING)
