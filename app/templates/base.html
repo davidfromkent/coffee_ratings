@@ -11,59 +11,76 @@
 
     <!-- Favicon -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
-	<link rel="icon" type="image/png" href="/static/img/dfd_logo_64.png">
-	
-	<link rel="manifest" href="/static/manifest.json">
-	<meta name="theme-color" content="#4b3621">
-	<link rel="apple-touch-icon" href="/static/img/dfd_logo_512.png">
-	<meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="icon" type="image/png" href="/static/img/dfd_logo_64.png">
+
+    <link rel="manifest" href="/static/manifest.json">
 </head>
 
-<body class="bg-[#4b3621] min-h-screen text-[#f7f2e9]">
+<body class="min-h-screen bg-[#4b3621] flex justify-center">
+    <div class="w-full max-w-md px-4 pb-10">
 
-    {% if title %}
-    <!-- HEADER BAR (all non-home pages) -->
-    <header class="w-full bg-[#4b3621]">
-        <div class="max-w-md mx-auto px-3 py-4 flex items-center">
+        <!-- Top nav -->
+        <div class="flex items-center justify-between mt-6 mb-6">
+            <a href="/" class="text-[#f7f2e9] font-bold text-lg">Coffee Ratings</a>
 
-            {% if back_url %}
-            <!-- Back arrow with nice tap area -->
-            <a href="{{ back_url }}"
-               class="text-[#f7f2e9] text-2xl pr-3 -ml-1 py-3">
-                ←
-            </a>
-            {% endif %}
-
-            <!-- Logo -->
-            <img src="/static/img/dfd_logo_48.png"
-                 alt="Logo"
-                 class="h-16 w-16 rounded-full opacity-90 mr-3">
-
-            <!-- Page title: larger, like your in-form title -->
-            <h1 class="text-3xl font-bold tracking-wide leading-tight">
-                {{ title }}
-            </h1>
-
+            <div class="flex gap-4 text-sm">
+                <a href="/venues" class="text-[#e8dfd1] hover:text-white">Venues</a>
+                <a href="/reviews" class="text-[#e8dfd1] hover:text-white">Reviews</a>
+                <a href="/reviews/new" class="text-[#e8dfd1] hover:text-white">Add</a>
+            </div>
         </div>
-    </header>
-    {% endif %}
 
-    <!-- MAIN CONTENT -->
-    <main class="max-w-md mx-auto px-3 py-6">
         {% block content %}{% endblock %}
-    </main>
-	
-	<footer class="text-center text-[#e8dfd1] text-xs mt-10 opacity-70">
-		A DFD project © 2025
-	</footer>
-	
-	<script>
-	if ("serviceWorker" in navigator) {
-	  navigator.serviceWorker.register("/static/service-worker.js")
-		.catch((err) => console.log("SW registration failed:", err));
-	}
-	</script>
 
-	
+        <footer class="text-center text-[#e8dfd1] text-xs mt-10 opacity-70">
+            A DFD project © 2025
+        </footer>
+
+        <script>
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("/static/service-worker.js")
+            .catch((err) => console.log("SW registration failed:", err));
+        }
+        </script>
+
+        <script>
+        // Show Edit/Delete actions only for reviews that belong to this device (identity_pin in localStorage)
+        (function () {
+          try {
+            const myPin = localStorage.getItem("identity_pin");
+            if (!myPin) return;
+
+            document.querySelectorAll("[data-review-identity-pin]").forEach((card) => {
+              const reviewPin = card.getAttribute("data-review-identity-pin");
+              if (reviewPin && reviewPin === myPin) {
+                const actions = card.querySelector(".my-review-actions");
+                if (actions) actions.classList.remove("hidden");
+              }
+            });
+
+            // UI-only handlers for now
+            document.addEventListener("click", function (e) {
+              const el = e.target.closest("[data-action]");
+              if (!el) return;
+
+              e.preventDefault();
+
+              const action = el.getAttribute("data-action");
+              const card = el.closest("[data-review-id]");
+              const reviewId = card ? card.getAttribute("data-review-id") : "";
+
+              if (action === "edit") {
+                alert("Edit review - coming soon. (Review ID: " + reviewId + ")");
+              } else if (action === "delete") {
+                alert("Delete review - coming soon. (Review ID: " + reviewId + ")");
+              }
+            });
+          } catch (err) {
+            // ignore
+          }
+        })();
+        </script>
+
+    </div>
 </body>
 </html>

@@ -16,6 +16,7 @@
     <h3 class="text-lg font-semibold mb-4">Average scores</h3>
 
     <div class="grid grid-cols-2 gap-x-6 gap-y-6">
+
         <div>
             <p class="text-sm text-[#6d5742] mb-1">Coffee</p>
             {{ cups.render_cups(venue.avg_coffee or 0) }}
@@ -43,19 +44,16 @@
 
         <div>
             <p class="text-sm text-[#6d5742] mb-1">Food</p>
-            {% if venue.avg_food == 0 %}
-                <span class="text-xs italic text-[#6d5742]">N/A</span>
-            {% else %}
-                {{ cups.render_cups(venue.avg_food or 0) }}
-            {% endif %}
+            {{ cups.render_cups(venue.avg_food or 0) }}
         </div>
+
     </div>
 </div>
 
 <!-- Add review button -->
 <div class="mt-6">
     <a href="/reviews/new?venue_id={{ venue.id }}"
-       class="block w-full text-center bg-[#6d4c41] text-[#f7f2e9] font-semibold py-3 rounded-xl shadow hover:bg-[#5d4037] transition">
+       class="w-full block text-center bg-[#6d4c41] text-[#f7f2e9] py-3 rounded-lg font-semibold shadow hover:bg-[#5d4037]">
         Add Review
     </a>
 </div>
@@ -72,7 +70,9 @@
 <div class="flex flex-col gap-4">
 
 {% for r in venue.reviews %}
-<div class="bg-[#f7f2e9] rounded-xl p-4 shadow text-[#4b3621]">
+<div class="bg-[#f7f2e9] rounded-xl p-4 shadow text-[#4b3621]"
+     data-review-id="{{ r.id }}"
+     data-review-identity-pin="{{ r.identity_pin }}">
 
     <!-- Rating -->
     <div class="flex items-center gap-2">
@@ -87,16 +87,7 @@
     <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-2 text-sm text-[#6d5742]">
         <p>Coffee: {{ r.coffee }}</p>
         <p>Value: {{ r.cost }}</p>
-        <p>Service: {{ r.service }}</p>
-        <p>Hygiene: {{ r.hygiene }}</p>
-        <p>Ambience: {{ r.ambience }}</p>
-        <p>
-            {% if r.food == 0 %}
-                Food: N/A
-            {% else %}
-                Food: {{ r.food }}
-            {% endif %}
-        </p>
+        ...
     </div>
 
     <!-- Notes -->
@@ -104,11 +95,23 @@
     <p class="text-sm italic mt-2">{{ r.notes }}</p>
     {% endif %}
 
-    <!-- Reviewer, date -->
+    <!-- Reviewer, date + actions -->
     {% set d = r.visit_date.split("-") %}
-    <p class="text-xs mt-3">
-        {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
-    </p>
+    <div class="mt-3 flex items-end justify-between gap-3">
+        <p class="text-xs">
+            {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
+        </p>
+
+        <!-- UI only for now. Shown only if this review belongs to this device. -->
+        <div class="my-review-actions hidden flex gap-3 text-xs">
+            <a href="#" data-action="edit" class="text-[#6d4c41] hover:underline">
+                ✏️ Edit
+            </a>
+            <a href="#" data-action="delete" class="text-[#a63a2b] hover:underline">
+                🗑️ Delete
+            </a>
+        </div>
+    </div>
 
 </div>
 {% endfor %}

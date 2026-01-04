@@ -9,7 +9,6 @@
 </div>
 {% endif %}
 
-
 <h2 class="text-xl font-semibold text-[#f7f2e9] mb-4">
     Reviews
 </h2>
@@ -29,19 +28,20 @@
         <option value="">Sort by</option>
         <option value="high" {% if sort == 'high' %}selected{% endif %}>Highest rated</option>
         <option value="low" {% if sort == 'low' %}selected{% endif %}>Lowest rated</option>
+        <option value="new" {% if sort == 'new' %}selected{% endif %}>Newest</option>
     </select>
 </form>
 
 {% if reviews|length == 0 %}
-<p class="text-[#e8dfd1] text-sm">
-    No reviews found.
-</p>
-
+<p class="text-[#e8dfd1] text-sm">No reviews yet.</p>
 {% else %}
+
 <div class="flex flex-col gap-4">
 
-    {% for r in reviews %}
-    <div class="bg-[#f7f2e9] rounded-xl p-4 shadow text-[#4b3621]">
+{% for r in reviews %}
+    <div class="bg-[#f7f2e9] rounded-xl p-4 shadow text-[#4b3621]"
+         data-review-id="{{ r.id }}"
+         data-review-identity-pin="{{ r.identity_pin }}">
 
         <!-- Venue name and location -->
         <a href="/venues/{{ r.venue.id }}"
@@ -81,14 +81,26 @@
         <p class="text-sm italic mt-2">{{ r.notes }}</p>
         {% endif %}
 
-        <!-- Reviewer and date -->
+        <!-- Reviewer, date + actions -->
         {% set d = r.visit_date.split("-") %}
-        <p class="text-xs text-[#4b3621] mt-3">
-            {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
-        </p>
+        <div class="mt-3 flex items-end justify-between gap-3">
+            <p class="text-xs text-[#4b3621]">
+                {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
+            </p>
+
+            <!-- UI only for now. Shown only if this review belongs to this device. -->
+            <div class="my-review-actions hidden flex gap-3 text-xs">
+                <a href="#" data-action="edit" class="text-[#6d4c41] hover:underline">
+                    ✏️ Edit
+                </a>
+                <a href="#" data-action="delete" class="text-[#a63a2b] hover:underline">
+                    🗑️ Delete
+                </a>
+            </div>
+        </div>
 
     </div>
-    {% endfor %}
+{% endfor %}
 
 </div>
 {% endif %}
