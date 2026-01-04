@@ -4,11 +4,11 @@
 <div class="text-center mt-10 text-[#f7f2e9] space-y-6">
 
     <h2 class="text-xl font-bold text-center">
-        You already reviewed {{ venue_name }}.
+        You already reviewed {{ form_data.venue_name }}.
     </h2>
 
     <p class="text-sm text-[#e8dfd1] leading-snug">
-        on {{ visit_date[8:10] }}-{{ visit_date[5:7] }}-{{ visit_date[0:4] }}
+        on {{ form_data.visit_date[8:10] }}-{{ form_data.visit_date[5:7] }}-{{ form_data.visit_date[0:4] }}
     </p>
 
     <p class="text-sm">
@@ -21,20 +21,20 @@
 
     <!-- Update existing review -->
     <form action="/reviews/duplicate-update" method="post" class="space-y-3">
-        <input type="hidden" name="existing_review_id" value="{{ existing_review_id }}">
+        <input type="hidden" name="existing_review_id" value="{{ existing_review.id }}">
         <input type="hidden" name="venue_id" value="{{ venue_id }}">
-        <input type="hidden" name="venue_name" value="{{ venue_name }}">
-        <input type="hidden" name="location" value="{{ location }}">
-        <input type="hidden" name="reviewer_name" value="{{ reviewer_name }}">
-        <input type="hidden" name="identity_pin" value="{{ identity_pin }}">
-        <input type="hidden" name="visit_date" value="{{ visit_date }}">
-        <input type="hidden" name="coffee" value="{{ coffee }}">
-        <input type="hidden" name="cost" value="{{ cost }}">
-        <input type="hidden" name="service" value="{{ service }}">
-        <input type="hidden" name="hygiene" value="{{ hygiene }}">
-        <input type="hidden" name="ambience" value="{{ ambience }}">
-        <input type="hidden" name="food" value="{{ food }}">
-        <input type="hidden" name="notes" value="{{ notes|e }}">
+        <input type="hidden" name="venue_name" value="{{ form_data.venue_name }}">
+        <input type="hidden" name="location" value="{{ form_data.location }}">
+        <input type="hidden" name="reviewer_name" value="{{ form_data.reviewer_name }}">
+        <input type="hidden" name="identity_pin" value="{{ form_data.identity_pin }}">
+        <input type="hidden" name="visit_date" value="{{ form_data.visit_date }}">
+        <input type="hidden" name="coffee" value="{{ form_data.coffee }}">
+        <input type="hidden" name="cost" value="{{ form_data.cost }}">
+        <input type="hidden" name="service" value="{{ form_data.service }}">
+        <input type="hidden" name="hygiene" value="{{ form_data.hygiene }}">
+        <input type="hidden" name="ambience" value="{{ form_data.ambience }}">
+        <input type="hidden" name="food" value="{{ form_data.food }}">
+        <input type="hidden" name="notes" value="{{ form_data.notes|e }}">
 
         <button type="submit"
                 class="w-full bg-[#6d4c41] py-3 rounded-lg font-semibold shadow hover:bg-[#5d4037]">
