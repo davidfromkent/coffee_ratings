@@ -374,28 +374,28 @@ def add_review(
         )
 
     # Create review
-total_score = coffee + cost + service + hygiene + ambience + food
-category_count = 6
+    total_score = coffee + cost + service + hygiene + ambience + food
+    category_count = 6
 
-review = models.Review(
-    identity_pin=identity_pin.strip(),
-    reviewer_name=reviewer_name.strip(),
-    venue_id=venue.id,
-    venue_name_raw=venue.name,
-    venue_location_raw=venue.location,
-    visit_date=visit_date,
-    coffee=coffee,
-    cost=cost,
-    service=service,
-    hygiene=hygiene,
-    ambience=ambience,
-    food=food,
-    total_score=total_score,
-    category_count=category_count,
-    notes=notes.strip(),
-)
-db.add(review)
-db.commit()
+    review = models.Review(
+        identity_pin=identity_pin.strip(),
+        reviewer_name=reviewer_name.strip(),
+        venue_id=venue.id,
+        venue_name_raw=venue.name,
+        venue_location_raw=venue.location,
+        visit_date=visit_date,
+        coffee=coffee,
+        cost=cost,
+        service=service,
+        hygiene=hygiene,
+        ambience=ambience,
+        food=food,
+        total_score=total_score,
+        category_count=category_count,
+        notes=notes.strip(),
+    )
+    db.add(review)
+    db.commit()
 # Update averages
     update_venue_averages(db, venue.id)
 
