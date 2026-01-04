@@ -58,23 +58,34 @@
               }
             });
 
-            // UI-only handlers for now
+            // Fill hidden identity_pin fields for delete forms
+            document.querySelectorAll('.identity-pin-field').forEach((inp) => {
+              inp.value = myPin;
+            });
+
+            // Keep Edit as UI-only for now
             document.addEventListener("click", function (e) {
-              const el = e.target.closest("[data-action]");
+              const el = e.target.closest('[data-action="edit"]');
               if (!el) return;
 
               e.preventDefault();
 
-              const action = el.getAttribute("data-action");
               const card = el.closest("[data-review-id]");
               const reviewId = card ? card.getAttribute("data-review-id") : "";
 
-              if (action === "edit") {
-                alert("Edit review - coming soon. (Review ID: " + reviewId + ")");
-              } else if (action === "delete") {
-                alert("Delete review - coming soon. (Review ID: " + reviewId + ")");
+              alert("Edit review - coming soon. (Review ID: " + reviewId + ")");
+            });
+
+            // Confirm before deleting
+            document.addEventListener("submit", function (e) {
+              const form = e.target.closest(".delete-review-form");
+              if (!form) return;
+
+              if (!confirm("Delete this review? This can't be undone.")) {
+                e.preventDefault();
               }
             });
+
           } catch (err) {
             // ignore
           }

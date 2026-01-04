@@ -11,6 +11,20 @@
     {{ venue.location }}
 </p>
 
+{% if msg == "deleted" %}
+<div class="mb-4 bg-[#6d4c41] text-[#f7f2e9] p-3 rounded-lg shadow text-sm">
+    Review deleted.
+</div>
+{% elif msg == "denied" %}
+<div class="mb-4 bg-red-700 text-white p-3 rounded-lg shadow text-sm">
+    You cannot delete that review.
+</div>
+{% elif msg == "notfound" %}
+<div class="mb-4 bg-red-700 text-white p-3 rounded-lg shadow text-sm">
+    Review not found.
+</div>
+{% endif %}
+
 <!-- Average scores box -->
 <div class="bg-[#f7f2e9] rounded-xl p-4 shadow-md text-[#4b3621]">
     <h3 class="text-lg font-semibold mb-4">Average scores</h3>
@@ -102,14 +116,18 @@
             {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
         </p>
 
-        <!-- UI only for now. Shown only if this review belongs to this device. -->
+        <!-- Shown only if this review belongs to this device. -->
         <div class="my-review-actions hidden flex gap-3 text-xs">
             <a href="#" data-action="edit" class="text-[#6d4c41] hover:underline">
                 ✏️ Edit
             </a>
-            <a href="#" data-action="delete" class="text-[#a63a2b] hover:underline">
-                🗑️ Delete
-            </a>
+
+            <form method="post" action="/reviews/{{ r.id }}/delete" class="delete-review-form inline">
+                <input type="hidden" name="identity_pin" class="identity-pin-field">
+                <button type="submit" class="text-[#a63a2b] hover:underline">
+                    🗑️ Delete
+                </button>
+            </form>
         </div>
     </div>
 

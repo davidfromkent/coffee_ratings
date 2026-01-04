@@ -6,6 +6,7 @@ from starlette.requests import Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import Optional
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 from .dependencies import get_db
 from . import models
@@ -27,6 +28,17 @@ def update_venue_averages(db, venue_id: int):
     reviews = db.query(models.Review).filter(models.Review.venue_id == venue_id).all()
 
     if not reviews:
+        venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
+        if not venue:
+            return
+        venue.avg_coffee = None
+        venue.avg_cost = None
+        venue.avg_service = None
+        venue.avg_hygiene = None
+        venue.avg_ambience = None
+        venue.avg_food = None
+        venue.avg_total_score = None
+        db.commit()
         return
 
     def safe_avg(values):
@@ -39,6 +51,7 @@ def update_venue_averages(db, venue_id: int):
     avg_ambience = safe_avg([r.ambience for r in reviews])
     avg_food = safe_avg([r.food for r in reviews if r.food != 0])
 
+    # Total score is average of each review's average cups
     weighted_scores = [
         r.total_score / r.category_count
         for r in reviews
@@ -58,17 +71,63 @@ def update_venue_averages(db, venue_id: int):
 
 
 # ---------------------------------------------------------
-# ROUTES
+# Helper: add or replace ?msg=... on a URL
 # ---------------------------------------------------------
+def _add_msg(url: str, msg: str) -> str:
+    if not url:
+        return f"/reviews?msg={msg}"
+    parts = urlparse(url)
+    q = dict(parse_qsl(parts.query, keep_blank_values=True))
+    q["msg"] = msg
+    new_query = urlencode(q)
+    return urlunparse((parts.scheme, parts.netloc, parts.path, parts.params, new_query, parts.fragment))
 
 
-# HOME PAGE
+# ---------------------------------------------------------
+# DELETE REVIEW (owner-only via identity_pin)
+# ---------------------------------------------------------
+@app.post("/reviews/{review_id}/delete")
+def delete_review(
+    request: Request,
+    review_id: int,
+    identity_pin: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    review = db.query(models.Review).filter(models.Review.id == review_id).first()
+    referer = request.headers.get("referer") or "/reviews"
+
+    if not review:
+        return RedirectResponse(_add_msg(referer, "notfound"), status_code=303)
+
+    if review.identity_pin != identity_pin:
+        return RedirectResponse(_add_msg(referer, "denied"), status_code=303)
+
+    venue_id = review.venue_id
+    db.delete(review)
+    db.commit()
+
+    update_venue_averages(db, venue_id)
+
+    return RedirectResponse(_add_msg(referer, "deleted"), status_code=303)
+
+
+# ---------------------------------------------------------
+# HOME
+# ---------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+    return templates.TemplateResponse(
+        "home.html",
+        {
+            "request": request,
+            "title": "Coffee Ratings",
+        },
+    )
 
 
+# ---------------------------------------------------------
 # VENUES LIST
+# ---------------------------------------------------------
 @app.get("/venues", response_class=HTMLResponse)
 def list_venues(request: Request, db: Session = Depends(get_db)):
     venues = db.query(models.Venue).all()
@@ -87,12 +146,15 @@ def list_venues(request: Request, db: Session = Depends(get_db)):
     )
 
 
-# SINGLE VENUE PAGE (marker-based)
+# ---------------------------------------------------------
+# VENUE DETAIL
+# ---------------------------------------------------------
 @app.get("/venues/{venue_id}", response_class=HTMLResponse)
 def venue_detail(
     venue_id: int,
     request: Request,
     from_param: Optional[str] = None,
+    msg: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
@@ -115,11 +177,14 @@ def venue_detail(
             "reviews": reviews,
             "title": venue.name,
             "back_url": back_url,
+            "msg": msg,
         },
     )
 
 
-# ALL REVIEWS (with search)
+# ---------------------------------------------------------
+# REVIEWS LIST
+# ---------------------------------------------------------
 @app.get("/reviews", response_class=HTMLResponse)
 def list_reviews(
     request: Request,
@@ -137,13 +202,19 @@ def list_reviews(
             like = f"%{search_query}%"
             query = query.filter(models.Venue.name.ilike(like))
 
-    # Sorting
     if sort == "high":
-        query = query.order_by((models.Venue.avg_total_score).desc())
+        query = query.order_by(models.Review.total_score.desc())
     elif sort == "low":
-        query = query.order_by((models.Venue.avg_total_score).asc())
+        query = query.order_by(models.Review.total_score.asc())
+    elif sort == "new":
+        query = query.order_by(models.Review.visit_date.desc())
+    else:
+        query = query.order_by(models.Review.visit_date.desc())
 
     reviews = query.all()
+
+    # Back URL for reviews list
+    back_url = "/"
 
     return templates.TemplateResponse(
         "reviews.html",
@@ -151,15 +222,17 @@ def list_reviews(
             "request": request,
             "reviews": reviews,
             "title": "Reviews",
-            "back_url": "/",
             "search_query": search_query,
             "sort": sort,
             "msg": msg,
+            "back_url": back_url,
         },
     )
 
 
-# ADD REVIEW FORM (marker preserved)
+# ---------------------------------------------------------
+# ADD REVIEW (FORM)
+# ---------------------------------------------------------
 @app.get("/reviews/new", response_class=HTMLResponse)
 def new_review_form(
     request: Request,
@@ -168,12 +241,12 @@ def new_review_form(
     db: Session = Depends(get_db),
 ):
     venue = None
-    if venue_id is not None:
+    if venue_id:
         venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
 
-    # Decide back target
-    if venue_id is not None:
-        # Return to the same venue, carrying the from marker forward
+    # Back logic
+    if venue_id:
+        # Add review from venue detail
         if from_param == "reviews":
             back_url = f"/venues/{venue_id}?from=reviews"
         else:
@@ -193,60 +266,52 @@ def new_review_form(
     )
 
 
-# Duplicate check endpoint (used by frontend)
-@app.get("/check-duplicate")
+# ---------------------------------------------------------
+# DUPLICATE CHECK ENDPOINT
+# ---------------------------------------------------------
+@app.get("/check-duplicate", response_class=HTMLResponse)
 def check_duplicate(
-    venue_name: str,
-    location: str,
-    visit_date: str,
+    request: Request,
     identity_pin: str,
+    venue_id: int,
+    visit_date: str,
     db: Session = Depends(get_db),
 ):
-    venue_name_clean = (venue_name or "").strip()
-    location_clean = (location or "").strip()
-
-    venue = db.query(models.Venue).filter(
-        models.Venue.name.ilike(venue_name_clean),
-        models.Venue.location.ilike(location_clean)
-    ).first()
-
-    # If venue does not exist yet, it cannot be a duplicate
-    if not venue:
-        return {"duplicate": False}
-
-    # First try the strict rule (same venue_id)
-    exists = db.query(models.Review).filter(
-        models.Review.venue_id == venue.id,
-        models.Review.identity_pin == identity_pin,
-        or_(
-            models.Review.visit_date == visit_date,
-            models.Review.visit_date.like(f"{visit_date}%"),
-        ),
-    ).first()
-
-    # Fallback: if live has duplicate Venue rows, also check by raw text
-    if not exists:
-        exists = db.query(models.Review).filter(
+    existing = (
+        db.query(models.Review)
+        .filter(
             models.Review.identity_pin == identity_pin,
-            or_(
-                models.Review.visit_date == visit_date,
-                models.Review.visit_date.like(f"{visit_date}%"),
-            ),
-            func.lower(models.Review.venue_name_raw) == venue_name_clean.lower(),
-            func.lower(models.Review.venue_location_raw) == location_clean.lower(),
-        ).first()
+            models.Review.venue_id == venue_id,
+            models.Review.visit_date == visit_date,
+        )
+        .first()
+    )
 
-    return {"duplicate": exists is not None}
+    if existing:
+        return templates.TemplateResponse(
+            "duplicate_prompt.html",
+            {
+                "request": request,
+                "existing_review": existing,
+                "venue_id": venue_id,
+                "visit_date": visit_date,
+            },
+        )
+
+    return HTMLResponse("")
 
 
-# SUBMIT REVIEW
+# ---------------------------------------------------------
+# ADD REVIEW (SUBMIT)
+# ---------------------------------------------------------
 @app.post("/reviews/new")
-def create_review(
+def add_review(
     request: Request,
-    reviewer_name: str = Form(...),
-    identity_pin: str = Form(...),
     venue_name: str = Form(...),
     location: str = Form(...),
+    visit_date: str = Form(...),
+    reviewer_name: str = Form(...),
+    identity_pin: str = Form(...),
     coffee: int = Form(...),
     cost: int = Form(...),
     service: int = Form(...),
@@ -254,125 +319,93 @@ def create_review(
     ambience: int = Form(...),
     food: int = Form(...),
     notes: str = Form(""),
-    visit_date: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    # Fallback to prevent NOT NULL errors
-    if not identity_pin or identity_pin.strip() == "":
-        identity_pin = "000000"
+    # Get or create venue
+    venue = (
+        db.query(models.Venue)
+        .filter(
+            func.lower(models.Venue.name) == venue_name.strip().lower(),
+            func.lower(models.Venue.location) == location.strip().lower(),
+        )
+        .first()
+    )
 
-    venue_name_clean = (venue_name or "").strip()
-    location_clean = (location or "").strip()
-
-    # Find or create venue
-    existing = db.query(models.Venue).filter(
-        models.Venue.name.ilike(venue_name_clean),
-        models.Venue.location.ilike(location_clean),
-    ).first()
-
-    if existing:
-        venue = existing
-    else:
-        venue = models.Venue(name=venue_name_clean, location=location_clean)
+    if not venue:
+        venue = models.Venue(name=venue_name.strip(), location=location.strip())
         db.add(venue)
         db.commit()
         db.refresh(venue)
 
-    # Calculate score components
-    scores = [coffee, cost, service, hygiene, ambience]
-    if food != 0:
-        scores.append(food)
-
-    total_score = sum(scores)
-    category_count = len(scores)
-
-    # Duplicate review check (RULES)
-    # One review per user per day per venue
-    # Primary check uses venue_id
-    existing_review = db.query(models.Review).filter(
-        models.Review.identity_pin == identity_pin,
-        models.Review.venue_id == venue.id,
-        or_(
-            models.Review.visit_date == visit_date,
-            models.Review.visit_date.like(f"{visit_date}%"),
-        ),
-    ).first()
-
-    # Fallback: if live has duplicate Venue rows, also match by raw venue text
-    if not existing_review:
-        existing_review = db.query(models.Review).filter(
+    # Duplicate check
+    existing = (
+        db.query(models.Review)
+        .filter(
             models.Review.identity_pin == identity_pin,
-            or_(
-                models.Review.visit_date == visit_date,
-                models.Review.visit_date.like(f"{visit_date}%"),
-            ),
-            func.lower(models.Review.venue_name_raw) == venue_name_clean.lower(),
-            func.lower(models.Review.venue_location_raw) == location_clean.lower(),
-        ).first()
+            models.Review.venue_id == venue.id,
+            models.Review.visit_date == visit_date,
+        )
+        .first()
+    )
 
-    if existing_review:
-        # Show a prompt offering Update or Cancel
+    if existing:
         return templates.TemplateResponse(
             "duplicate_prompt.html",
             {
                 "request": request,
-                "message_primary": "You can only leave one review per venue per day.",
-                "message_secondary": "You’ve already reviewed this place on that date. Would you like to update your existing review instead?",
-                "existing_review_id": existing_review.id,
-                "venue_id": existing_review.venue_id,
-                "venue_name": venue_name_clean,
-                "location": location_clean,
-                "reviewer_name": reviewer_name,
-                "identity_pin": identity_pin,
+                "existing_review": existing,
+                "venue_id": venue.id,
                 "visit_date": visit_date,
-                "coffee": coffee,
-                "cost": cost,
-                "service": service,
-                "hygiene": hygiene,
-                "ambience": ambience,
-                "food": food,
-                "notes": notes,
-            }
+                "form_data": {
+                    "venue_name": venue_name,
+                    "location": location,
+                    "visit_date": visit_date,
+                    "reviewer_name": reviewer_name,
+                    "identity_pin": identity_pin,
+                    "coffee": coffee,
+                    "cost": cost,
+                    "service": service,
+                    "hygiene": hygiene,
+                    "ambience": ambience,
+                    "food": food,
+                    "notes": notes,
+                },
+            },
         )
 
-    # Create new review
+    # Create review
     review = models.Review(
-        venue_id=venue.id,
-        venue_name_raw=venue_name_clean,
-        venue_location_raw=location_clean,
-        reviewer_name=reviewer_name,
         identity_pin=identity_pin,
+        reviewer_name=reviewer_name.strip(),
+        venue_id=venue.id,
+        visit_date=visit_date,
         coffee=coffee,
         cost=cost,
         service=service,
         hygiene=hygiene,
         ambience=ambience,
         food=food,
-        total_score=total_score,
-        category_count=category_count,
-        notes=notes,
-        visit_date=visit_date,
+        notes=notes.strip(),
     )
-
     db.add(review)
     db.commit()
 
+    # Update averages
     update_venue_averages(db, venue.id)
 
-    # New review created, do not show "updated" banner
     return RedirectResponse(url="/reviews", status_code=303)
 
 
-# CONFIRM UPDATE EXISTING DUPLICATE
+# ---------------------------------------------------------
+# DUPLICATE UPDATE
+# ---------------------------------------------------------
 @app.post("/reviews/duplicate-update")
 def duplicate_update(
-    request: Request,
     existing_review_id: int = Form(...),
+    venue_id: int = Form(...),
+    visit_date: str = Form(...),
     reviewer_name: str = Form(...),
     identity_pin: str = Form(...),
-    venue_id: int = Form(...),
-    venue_name: str = Form(...),
-    location: str = Form(...),
     coffee: int = Form(...),
     cost: int = Form(...),
     service: int = Form(...),
@@ -380,42 +413,25 @@ def duplicate_update(
     ambience: int = Form(...),
     food: int = Form(...),
     notes: str = Form(""),
-    visit_date: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    # Safety fallback
-    if not identity_pin or identity_pin.strip() == "":
-        identity_pin = "000000"
+    existing = db.query(models.Review).filter(models.Review.id == existing_review_id).first()
+    if not existing:
+        return RedirectResponse(url="/reviews?msg=notfound", status_code=303)
 
-    review = db.query(models.Review).filter(models.Review.id == existing_review_id).first()
-    if not review:
-        return RedirectResponse(url="/reviews/new", status_code=303)
+    # Only allow update if identity matches
+    if existing.identity_pin != identity_pin:
+        return RedirectResponse(url="/reviews?msg=denied", status_code=303)
 
-    # Guard: ensure the review being updated really belongs to this user and venue and date
-    if review.identity_pin != identity_pin or review.venue_id != venue_id or str(review.visit_date) != str(visit_date):
-        return RedirectResponse(url="/reviews/new", status_code=303)
-
-    scores = [coffee, cost, service, hygiene, ambience]
-    if food != 0:
-        scores.append(food)
-
-    total_score = sum(scores)
-    category_count = len(scores)
-
-    # Update the existing record in place
-    review.reviewer_name = reviewer_name
-    review.venue_name_raw = (venue_name or "").strip()
-    review.venue_location_raw = (location or "").strip()
-    review.coffee = coffee
-    review.cost = cost
-    review.service = service
-    review.hygiene = hygiene
-    review.ambience = ambience
-    review.food = food
-    review.total_score = total_score
-    review.category_count = category_count
-    review.notes = notes
-    review.visit_date = visit_date
+    existing.reviewer_name = reviewer_name.strip()
+    existing.visit_date = visit_date
+    existing.coffee = coffee
+    existing.cost = cost
+    existing.service = service
+    existing.hygiene = hygiene
+    existing.ambience = ambience
+    existing.food = food
+    existing.notes = notes.strip()
 
     db.commit()
 
@@ -424,9 +440,9 @@ def duplicate_update(
     return RedirectResponse(url="/reviews?msg=updated", status_code=303)
 
 
-# CANCEL DUPLICATE (DO NOTHING)
+# ---------------------------------------------------------
+# DUPLICATE CANCEL
+# ---------------------------------------------------------
 @app.post("/reviews/duplicate-cancel")
-def duplicate_cancel(
-    request: Request,
-):
-    return RedirectResponse(url="/reviews/new?msg=cancelled", status_code=303)
+def duplicate_cancel():
+    return RedirectResponse(url="/reviews/new", status_code=303)
