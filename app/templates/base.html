@@ -59,21 +59,8 @@
             });
 
             // Fill hidden identity_pin fields for delete forms
-            document.querySelectorAll('.identity-pin-field').forEach((inp) => {
+            document.querySelectorAll(".identity-pin-field").forEach((inp) => {
               inp.value = myPin;
-            });
-
-            // Keep Edit as UI-only for now
-            document.addEventListener("click", function (e) {
-              const el = e.target.closest('[data-action="edit"]');
-              if (!el) return;
-
-              e.preventDefault();
-
-              const card = el.closest("[data-review-id]");
-              const reviewId = card ? card.getAttribute("data-review-id") : "";
-
-              alert("Edit review - coming soon. (Review ID: " + reviewId + ")");
             });
 
             // Confirm before deleting
