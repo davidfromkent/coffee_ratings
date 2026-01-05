@@ -3,12 +3,21 @@
 
 <div class="max-w-md mx-auto space-y-6">
 
-    <form action="/reviews/new" method="post" class="space-y-6" id="reviewForm" onsubmit="return validateNameAndStore()">
+    <form action="{{ form_action if form_action else '/reviews/new' }}"
+          method="post"
+          class="space-y-6"
+          id="reviewForm"
+          onsubmit="return validateNameAndStore()">
+
+        {% if existing_review_id %}
+        <input type="hidden" name="existing_review_id" value="{{ existing_review_id }}">
+        {% endif %}
 
         <!-- Reviewer name section (only shown when unlocked) -->
         <div id="name-section" class="mb-4 hidden">
             <label class="block text-[#e8dfd1] text-sm mb-1">Your name</label>
             <input type="text" id="reviewer_name" name="reviewer_name"
+                   value="{{ form_data.reviewer_name if form_data and form_data.reviewer_name is not none else '' }}"
                    class="w-full p-3 rounded-lg bg-[#f7f2e9] text-[#4b3621] shadow outline-none"
                    placeholder="Forename Surname">
 
@@ -20,9 +29,11 @@
         <!-- Venue name + location -->
         <div class="space-y-4">
             <input type="text" name="venue_name" placeholder="Venue name" required
+                value="{{ form_data.venue_name if form_data and form_data.venue_name is not none else '' }}"
                 class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] shadow"/>
 
             <input type="text" name="location" placeholder="Location" required
+                value="{{ form_data.location if form_data and form_data.location is not none else '' }}"
                 class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] shadow"/>
         </div>
 
@@ -37,41 +48,46 @@
                     </label>
                     <select name="{{ category }}" required
                         class="w-full rounded-lg p-2 bg-[#4b3621] text-[#f7f2e9]">
-                        <option value="" disabled selected hidden>Select</option>
+                        <option value="" disabled {% if not form_data or form_data[category] is not defined or form_data[category] in [None, ''] %}selected{% endif %} hidden>Select</option>
                         {% for s in [5,4,3,2,1] %}
-                        <option value="{{ s }}">{{ s }}</option>
+                        <option value="{{ s }}" {% if form_data and form_data[category] is defined and form_data[category] is not none and (form_data[category]|int) == s %}selected{% endif %}>{{ s }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 {% endfor %}
+
                 <div>
                     <label class="block text-xs text-[#f7f2e9] mb-1">Food (or N/A)</label>
                     <select name="food" required
                         class="w-full rounded-lg p-2 bg-[#4b3621] text-[#f7f2e9]">
-                        <option value="" disabled selected hidden>Select</option>
-                        <option value="5">5</option><option value="4">4</option>
-                        <option value="3">3</option><option value="2">2</option>
-                        <option value="1">1</option><option value="0">N/A</option>
+                        <option value="" disabled {% if not form_data or form_data.food is not defined or form_data.food in [None, ''] %}selected{% endif %} hidden>Select</option>
+                        <option value="5" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 5 %}selected{% endif %}>5</option>
+                        <option value="4" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 4 %}selected{% endif %}>4</option>
+                        <option value="3" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 3 %}selected{% endif %}>3</option>
+                        <option value="2" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 2 %}selected{% endif %}>2</option>
+                        <option value="1" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 1 %}selected{% endif %}>1</option>
+                        <option value="0" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 0 %}selected{% endif %}>N/A</option>
                     </select>
                 </div>
             </div>
         </div>
 
         <textarea name="notes" placeholder="Notes (optional)"
-            class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] h-16 shadow"></textarea>
+            class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] h-16 shadow">{{ form_data.notes if form_data and form_data.notes is not none else '' }}</textarea>
 
         <!-- Visit date -->
         <label class="block text-xs text-[#f7f2e9] mb-0">Visit date</label>
         <div class="relative">
             <input type="date" name="visit_date"
+                   value="{{ form_data.visit_date if form_data and form_data.visit_date is not none else '' }}"
                    class="w-full rounded-lg p-3 pt-2 bg-[#6d4c41] text-[#f7f2e9] shadow pr-10"
-				   max=""
+                   max=""
                    required>
             <span class="absolute right-3 top-3 text-[#e8dfd1] pointer-events-none">📅</span>
         </div>
 
         <!-- Hidden identity -->
-        <input type="hidden" id="identity_pin" name="identity_pin">
+        <input type="hidden" id="identity_pin" name="identity_pin" value="{{ form_data.identity_pin if form_data and form_data.identity_pin is not none else '' }}">
 
         <a id="changeNameBtn"
            class="hidden text-[#e8dfd1] text-xs underline hover:text-white mb-2 cursor-pointer">
@@ -97,7 +113,7 @@
 
         <button type="submit"
             class="w-full bg-[#6d4c41] text-[#f7f2e9] py-3 rounded-xl font-semibold hover:bg-[#5d4037] shadow">
-            Save Review
+            {% if is_edit %}Save Changes{% else %}Save Review{% endif %}
         </button>
 
     </form>
@@ -116,19 +132,36 @@ document.addEventListener("DOMContentLoaded", function () {
     const pinError = document.getElementById("pin-error");
     const unlockBtn = document.getElementById("unlockBtn");
 
+    const visitDateInput = document.querySelector('input[name="visit_date"]');
+    if (visitDateInput) {
+        const today = new Date().toISOString().split("T")[0];
+        visitDateInput.max = today;
+
+        // If empty, default to today (UI convenience)
+        if (!visitDateInput.value) {
+            visitDateInput.value = today;
+        }
+    }
+
     const storedName = localStorage.getItem("reviewer_name");
-	document.querySelector('input[name="visit_date"]').max = new Date().toISOString().split("T")[0];
     let storedPIN = localStorage.getItem("identity_pin");
 
     if (!storedPIN) {
         storedPIN = Math.floor(100000 + Math.random() * 900000).toString();
         localStorage.setItem("identity_pin", storedPIN);
     }
-    pinField.value = storedPIN;
-    pinDisplay.textContent = storedPIN;
+
+    // Always ensure hidden pin field is populated (don't rely on server)
+    if (pinField) pinField.value = storedPIN;
+
+    if (pinDisplay) pinDisplay.textContent = storedPIN;
+
+    // If reviewer name is already in localStorage and the field is empty, populate it
+    if (storedName && nameField && !nameField.value) {
+        nameField.value = storedName;
+    }
 
     if (storedName) {
-        nameField.value = storedName;
         nameSection.style.display = "none";
         nameField.removeAttribute("required");
         changeNameBtn.classList.remove("hidden");
@@ -164,7 +197,7 @@ function validateNameAndStore() {
     const nameSection = document.getElementById("name-section");
     const nameField = document.getElementById("reviewer_name");
 
-    if (nameSection.style.display === "none") {
+    if (nameSection && nameSection.style.display === "none") {
         return true;
     }
 
