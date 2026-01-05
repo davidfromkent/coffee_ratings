@@ -401,6 +401,117 @@ def add_review(
 
     return RedirectResponse(url="/reviews", status_code=303)
 
+# ---------------------------------------------------------
+# EDIT EXISTING REVIEW
+# ---------------------------------------------------------
+
+@app.get("/reviews/{review_id}/edit")
+def edit_review_page(
+    request: Request,
+    review_id: int,
+    db: Session = Depends(get_db),
+):
+    r = db.query(models.Review).filter(models.Review.id == review_id).first()
+    if not r:
+        return RedirectResponse(url="/reviews?msg=notfound", status_code=303)
+
+    form_data = {
+        "venue_name": r.venue_name_raw or "",
+        "location": r.venue_location_raw or "",
+        "visit_date": str(r.visit_date) if r.visit_date else "",
+        "reviewer_name": r.reviewer_name or "",
+        "identity_pin": "",  # JS will populate from localStorage
+        "coffee": r.coffee,
+        "cost": r.cost,
+        "service": r.service,
+        "hygiene": r.hygiene,
+        "ambience": r.ambience,
+        "food": r.food,
+        "notes": r.notes or "",
+    }
+
+    return templates.TemplateResponse(
+        "new_review.html",
+        {
+            "request": request,
+            "is_edit": True,
+            "form_action": f"/reviews/{review_id}/edit",
+            "existing_review_id": review_id,
+            "form_data": form_data,
+        },
+    )
+
+@app.post("/reviews/{review_id}/edit")
+def edit_review_save(
+    review_id: int,
+    venue_name: str = Form(...),
+    location: str = Form(...),
+    visit_date: str = Form(...),
+    reviewer_name: str = Form(...),
+    identity_pin: str = Form(...),
+    coffee: int = Form(...),
+    cost: int = Form(...),
+    service: int = Form(...),
+    hygiene: int = Form(...),
+    ambience: int = Form(...),
+    food: int = Form(...),
+    notes: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    r = db.query(models.Review).filter(models.Review.id == review_id).first()
+    if not r:
+        return RedirectResponse(url="/reviews?msg=notfound", status_code=303)
+
+    # Only allow the device that created it to edit
+    if (identity_pin or "").strip() != (r.identity_pin or "").strip():
+        return RedirectResponse(url="/reviews?msg=denied", status_code=303)
+
+    # Get or create venue
+    venue = (
+        db.query(models.Venue)
+        .filter(
+            func.lower(models.Venue.name) == venue_name.strip().lower(),
+            func.lower(models.Venue.location) == location.strip().lower(),
+        )
+        .first()
+    )
+
+    if not venue:
+        venue = models.Venue(name=venue_name.strip(), location=location.strip())
+        db.add(venue)
+        db.commit()
+        db.refresh(venue)
+
+    old_venue_id = r.venue_id
+
+    # Update review
+    r.venue_id = venue.id
+    r.venue_name_raw = venue.name
+    r.venue_location_raw = venue.location
+
+    r.reviewer_name = reviewer_name.strip()
+    r.visit_date = visit_date
+
+    r.coffee = coffee
+    r.cost = cost
+    r.service = service
+    r.hygiene = hygiene
+    r.ambience = ambience
+    r.food = food
+    r.notes = notes.strip()
+
+    r.total_score = coffee + cost + service + hygiene + ambience + food
+    r.category_count = 6
+
+    db.commit()
+
+    # Update averages for new venue (and old one if changed)
+    update_venue_averages(db, venue.id)
+    if old_venue_id and old_venue_id != venue.id:
+        update_venue_averages(db, old_venue_id)
+
+    return RedirectResponse(url="/reviews?msg=updated", status_code=303)
+
 
 # ---------------------------------------------------------
 # DUPLICATE UPDATE
