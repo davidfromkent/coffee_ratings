@@ -100,19 +100,20 @@
                 {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
             </p>
 
-            <!-- Shown only if this review belongs to this device. -->
-            <div class="my-review-actions hidden flex gap-3 text-xs">
-                <a href="#" data-action="edit" class="text-[#6d4c41] hover:underline">
-                    ✏️ Edit
-                </a>
+			<!-- Shown only if this review belongs to this device. -->
+			<div class="my-review-actions hidden flex gap-3 text-xs">
+				<a href="/reviews/{{ r.id }}/edit" class="text-[#6d4c41] hover:underline">
+					✏️ Edit
+				</a>
 
-                <form method="post" action="/reviews/{{ r.id }}/delete" class="delete-review-form inline">
-                    <input type="hidden" name="identity_pin" class="identity-pin-field">
-                    <button type="submit" class="text-[#a63a2b] hover:underline">
-                        🗑️ Delete
-                    </button>
-                </form>
-            </div>
+				<form method="post" action="/reviews/{{ r.id }}/delete" class="delete-review-form inline">
+					<input type="hidden" name="identity_pin" class="identity-pin-field">
+					<button type="submit" class="text-[#a63a2b] hover:underline">
+						🗑️ Delete
+					</button>
+				</form>
+			</div>
+
         </div>
 
     </div>
