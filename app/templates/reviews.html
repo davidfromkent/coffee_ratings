@@ -26,17 +26,17 @@
 </h2>
 
 <!-- Search and sort controls -->
-<form method="get" action="/reviews" class="mb-4 flex gap-2">
+<form method="get" action="/reviews" class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
     <input type="text"
            name="q"
            placeholder="Search café name"
            value="{{ search_query or '' }}"
-           class="flex-1 rounded-lg p-2 bg-[#f7f2e9] text-[#4b3621] shadow"
+           class="w-full rounded-lg p-2 bg-[#f7f2e9] text-[#4b3621] shadow"
     >
 
     <select name="sort"
             onchange="this.form.submit()"
-            class="rounded-lg p-2 bg-[#6d4c41] text-[#f7f2e9] shadow">
+            class="w-full sm:w-auto rounded-lg p-2 bg-[#6d4c41] text-[#f7f2e9] shadow">
         <option value="">Sort by</option>
         <option value="high" {% if sort == 'high' %}selected{% endif %}>Highest rated</option>
         <option value="low" {% if sort == 'low' %}selected{% endif %}>Lowest rated</option>
@@ -100,19 +100,19 @@
                 {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
             </p>
 
-			<!-- Shown only if this review belongs to this device. -->
-			<div class="my-review-actions hidden flex gap-3 text-xs">
-				<a href="/reviews/{{ r.id }}/edit" class="text-[#6d4c41] hover:underline">
-					✏️ Edit
-				</a>
+            <!-- Shown only if this review belongs to this device. -->
+            <div class="my-review-actions hidden flex gap-3 text-xs">
+                <a href="/reviews/{{ r.id }}/edit" class="text-[#6d4c41] hover:underline">
+                    ✏️ Edit
+                </a>
 
-				<form method="post" action="/reviews/{{ r.id }}/delete" class="delete-review-form inline">
-					<input type="hidden" name="identity_pin" class="identity-pin-field">
-					<button type="submit" class="text-[#a63a2b] hover:underline">
-						🗑️ Delete
-					</button>
-				</form>
-			</div>
+                <form method="post" action="/reviews/{{ r.id }}/delete" class="delete-review-form inline">
+                    <input type="hidden" name="identity_pin" class="identity-pin-field">
+                    <button type="submit" class="text-[#a63a2b] hover:underline">
+                        🗑️ Delete
+                    </button>
+                </form>
+            </div>
 
         </div>
 
