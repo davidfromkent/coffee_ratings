@@ -21,16 +21,17 @@ templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
-# ---------------------------------------------------------
+ ---------------------------------------------------------
 # Helper: Update all average scores for a venue
 # ---------------------------------------------------------
 def update_venue_averages(db, venue_id: int):
     reviews = db.query(models.Review).filter(models.Review.venue_id == venue_id).all()
 
+    venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
+    if not venue:
+        return
+
     if not reviews:
-        venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
-        if not venue:
-            return
         venue.avg_coffee = None
         venue.avg_cost = None
         venue.avg_service = None
@@ -42,23 +43,24 @@ def update_venue_averages(db, venue_id: int):
         return
 
     def safe_avg(values):
-        return sum(values) / len(values) if values else None
+        return (sum(values) / len(values)) if values else None
 
     avg_coffee = safe_avg([r.coffee for r in reviews])
     avg_cost = safe_avg([r.cost for r in reviews])
     avg_service = safe_avg([r.service for r in reviews])
     avg_hygiene = safe_avg([r.hygiene for r in reviews])
     avg_ambience = safe_avg([r.ambience for r in reviews])
+
+    # Only average food where it was actually scored (food != 0)
     avg_food = safe_avg([r.food for r in reviews if r.food != 0])
 
-    # Total score is average of each review's average cups
-    weighted_scores = [
-        r.total_score / r.category_count
-        for r in reviews
-    ]
-    avg_total = sum(weighted_scores) / len(weighted_scores)
+    # Correct overall average:
+    # sum of all category points across all reviews / sum of all category counts
+    total_points = sum((r.total_score or 0) for r in reviews)
+    total_categories = sum((r.category_count or 0) for r in reviews)
 
-    venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
+    avg_total = (total_points / total_categories) if total_categories else None
+
     venue.avg_coffee = avg_coffee
     venue.avg_cost = avg_cost
     venue.avg_service = avg_service
@@ -66,6 +68,8 @@ def update_venue_averages(db, venue_id: int):
     venue.avg_ambience = avg_ambience
     venue.avg_food = avg_food
     venue.avg_total_score = avg_total
+
+    db.commit()
 
     db.commit()
 
@@ -374,8 +378,13 @@ def add_review(
         )
 
     # Create review
-    total_score = coffee + cost + service + hygiene + ambience + food
-    category_count = 6
+    if food == 0:
+        total_score = coffee + cost + service + hygiene + ambience
+        category_count = 5
+    else:
+        total_score = coffee + cost + service + hygiene + ambience + food
+        category_count = 6
+
 
     review = models.Review(
         identity_pin=identity_pin.strip(),
@@ -500,8 +509,13 @@ def edit_review_save(
     r.food = food
     r.notes = notes.strip()
 
-    r.total_score = coffee + cost + service + hygiene + ambience + food
-    r.category_count = 6
+    if food == 0:
+        r.total_score = coffee + cost + service + hygiene + ambience
+        r.category_count = 5
+    else:
+        r.total_score = coffee + cost + service + hygiene + ambience + food
+        r.category_count = 6
+
 
     db.commit()
 
