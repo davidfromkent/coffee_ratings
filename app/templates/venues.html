@@ -7,8 +7,8 @@
     Venues
 </h2>
 
-<!-- Near me controls -->
-<form method="get" action="/venues" class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+<form method="get" action="/venues"
+      class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
 
     <div class="flex items-center gap-2">
         <input type="hidden" name="near_me" value="0">
@@ -24,10 +24,13 @@
     </div>
 
     <select name="radius"
+            id="radiusSelect"
             class="w-full sm:w-auto rounded-lg p-2 bg-[#6d4c41] text-[#f7f2e9] shadow"
             {% if not near_me %}disabled{% endif %}>
         {% for r in [1,2,5,10,20] %}
-        <option value="{{ r }}" {% if radius and radius|int == r %}selected{% endif %}>Within {{ r }} mile{% if r != 1 %}s{% endif %}</option>
+        <option value="{{ r }}" {% if radius and radius|int == r %}selected{% endif %}>
+            Within {{ r }} mile{% if r != 1 %}s{% endif %}
+        </option>
         {% endfor %}
     </select>
 
@@ -38,7 +41,6 @@
         <option value="value" {% if sort == "value" %}selected{% endif %}>Sort: Best value</option>
     </select>
 
-    <!-- Hidden fields populated by JS when Near me is checked -->
     <input type="hidden" name="lat" id="user_lat" value="{{ user_lat or '' }}">
     <input type="hidden" name="lng" id="user_lng" value="{{ user_lng or '' }}">
 
@@ -57,70 +59,53 @@
 </div>
 {% endif %}
 
-{% if near_me and venues|length > 0 %}
-{% set any_coords = false %}
-{% for v in venues %}
-    {% if v.latitude is not none and v.longitude is not none %}
-        {% set any_coords = true %}
-    {% endif %}
-{% endfor %}
-{% if not any_coords %}
-<div class="mb-4 bg-[#6d4c41] text-[#f7f2e9] p-3 rounded-lg shadow text-sm">
-    No venues have location data yet.
-</div>
-{% endif %}
-{% endif %}
-
 {% if venues|length == 0 %}
 <p class="text-[#e8dfd1] text-sm">No venues yet.</p>
-
 {% else %}
 <div class="flex flex-col gap-4">
 
-    {% for v in venues %}
-    <a href="/venues/{{ v.id }}"
-       class="block bg-[#f7f2e9] rounded-xl p-4 shadow hover:bg-white transition">
+{% for v in venues %}
+<a href="/venues/{{ v.id }}"
+   class="block bg-[#f7f2e9] rounded-xl p-4 shadow hover:bg-white transition">
 
-        <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-                <h2 class="text-lg font-semibold text-[#4b3621] mb-1">
-                    {{ v.name }}
-                </h2>
-
-                <p class="text-sm text-[#6d5742] mb-2">
-                    {{ v.location }}
-                </p>
-            </div>
-
-            {% if near_me and v.distance_miles is defined and v.distance_miles is not none %}
-            <div class="shrink-0 text-xs bg-[#6d4c41] text-[#f7f2e9] px-2 py-1 rounded-lg shadow">
-                {{ "%.1f"|format(v.distance_miles) }} mi
-            </div>
-            {% endif %}
+    <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+            <h2 class="text-lg font-semibold text-[#4b3621] mb-1">
+                {{ v.name }}
+            </h2>
+            <p class="text-sm text-[#6d5742] mb-2">
+                {{ v.location }}
+            </p>
         </div>
 
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center">
-                {{ cups.render_cups(v.avg_total_score or 0) }}
-                <span class="text-[#6d5742] text-sm ml-2">
-                    {{ (v.avg_total_score or 0)|round(1) }}/5
-                </span>
-            </div>
+        {% if near_me and v.distance_miles is not none %}
+        <div class="shrink-0 text-xs bg-[#6d4c41] text-[#f7f2e9] px-2 py-1 rounded-lg shadow">
+            {{ "%.1f"|format(v.distance_miles) }} mi
+        </div>
+        {% endif %}
+    </div>
 
-            {% if v.latitude is not none and v.longitude is not none %}
-            <a href="https://www.google.com/maps/dir/?api=1&destination={{ v.latitude }},{{ v.longitude }}"
-               class="text-xs text-[#6d4c41] underline"
-               target="_blank"
-               rel="noopener"
-               onclick="event.stopPropagation();">
-                Directions
-            </a>
-            {% endif %}
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center">
+            {{ cups.render_cups(v.avg_total_score or 0) }}
+            <span class="text-[#6d5742] text-sm ml-2">
+                {{ (v.avg_total_score or 0)|round(1) }}/5
+            </span>
         </div>
 
-    </a>
-    {% endfor %}
+        {% if v.latitude is not none and v.longitude is not none %}
+        <a href="https://www.google.com/maps/dir/?api=1&destination={{ v.latitude }},{{ v.longitude }}"
+           class="text-xs text-[#6d4c41] underline"
+           target="_blank"
+           rel="noopener"
+           onclick="event.stopPropagation();">
+            Directions
+        </a>
+        {% endif %}
+    </div>
 
+</a>
+{% endfor %}
 </div>
 {% endif %}
 
@@ -130,51 +115,58 @@ document.addEventListener("DOMContentLoaded", function () {
     const latField = document.getElementById("user_lat");
     const lngField = document.getElementById("user_lng");
     const applyBtn = document.getElementById("applyNearMeBtn");
-    const form = applyBtn ? applyBtn.closest("form") : null;
+    const radiusSelect = document.getElementById("radiusSelect");
+    const form = applyBtn.closest("form");
 
     function setRadiusDisabledState() {
-        const radiusSelect = document.querySelector('select[name="radius"]');
-        if (!radiusSelect) return;
         radiusSelect.disabled = !nearMeCheckbox.checked;
     }
 
     setRadiusDisabledState();
 
-    if (nearMeCheckbox) {
-        nearMeCheckbox.addEventListener("change", function () {
-            setRadiusDisabledState();
-        });
-    }
+    nearMeCheckbox.addEventListener("change", setRadiusDisabledState);
 
-    if (applyBtn && form) {
-        applyBtn.addEventListener("click", function () {
-            if (!nearMeCheckbox.checked) {
-                // Clear coords and submit normally
-                if (latField) latField.value = "";
-                if (lngField) lngField.value = "";
+    applyBtn.addEventListener("click", function () {
+        if (!nearMeCheckbox.checked) {
+            sessionStorage.removeItem("user_lat");
+            sessionStorage.removeItem("user_lng");
+            latField.value = "";
+            lngField.value = "";
+            form.submit();
+            return;
+        }
+
+        const cachedLat = sessionStorage.getItem("user_lat");
+        const cachedLng = sessionStorage.getItem("user_lng");
+
+        if (cachedLat && cachedLng) {
+            latField.value = cachedLat;
+            lngField.value = cachedLng;
+            form.submit();
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            form.submit();
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                const lat = pos.coords.latitude.toString();
+                const lng = pos.coords.longitude.toString();
+                sessionStorage.setItem("user_lat", lat);
+                sessionStorage.setItem("user_lng", lng);
+                latField.value = lat;
+                lngField.value = lng;
                 form.submit();
-                return;
-            }
-
-            if (!navigator.geolocation) {
+            },
+            function () {
                 form.submit();
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                function (pos) {
-                    if (latField) latField.value = pos.coords.latitude;
-                    if (lngField) lngField.value = pos.coords.longitude;
-                    form.submit();
-                },
-                function () {
-                    // Submit anyway, backend can show "Location not available"
-                    form.submit();
-                },
-                { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
-            );
-        });
-    }
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+        );
+    });
 });
 </script>
 
