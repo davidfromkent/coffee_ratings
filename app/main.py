@@ -1,12 +1,13 @@
-from fastapi import FastAPI, Depends, Form
+from fastapi import FastAPI, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import Optional
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+from datetime import date
 
 from .dependencies import get_db
 from . import models
@@ -68,6 +69,137 @@ def _add_msg(url: str, msg: str) -> str:
 
 
 # ---------------------------------------------------------
+# DELETE REVIEW
+# ---------------------------------------------------------
+@app.post("/reviews/{review_id}/delete")
+def delete_review(
+    request: Request,
+    review_id: int,
+    identity_pin: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    review = db.query(models.Review).filter(models.Review.id == review_id).first()
+    referer = request.headers.get("referer") or "/reviews"
+
+    if not review:
+        return RedirectResponse(_add_msg(referer, "notfound"), status_code=303)
+
+    if review.identity_pin != identity_pin:
+        return RedirectResponse(_add_msg(referer, "denied"), status_code=303)
+
+    venue_id = review.venue_id
+    db.delete(review)
+    db.commit()
+
+    update_venue_averages(db, venue_id)
+    return RedirectResponse(_add_msg(referer, "deleted"), status_code=303)
+
+
+# ---------------------------------------------------------
+# HOME
+# ---------------------------------------------------------
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request, "title": "Coffee Ratings"})
+
+
+# ---------------------------------------------------------
+# VENUES LIST
+# ---------------------------------------------------------
+@app.get("/venues", response_class=HTMLResponse)
+def list_venues(request: Request, db: Session = Depends(get_db)):
+    venues = db.query(models.Venue).all()
+    return templates.TemplateResponse(
+        "venues.html",
+        {"request": request, "venues": venues, "title": "Venues", "back_url": "/"},
+    )
+
+
+# ---------------------------------------------------------
+# VENUE DETAIL
+# ---------------------------------------------------------
+@app.get("/venues/{venue_id}", response_class=HTMLResponse)
+def venue_detail(
+    venue_id: int,
+    request: Request,
+    from_param: Optional[str] = None,
+    msg: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
+    reviews = db.query(models.Review).filter(models.Review.venue_id == venue_id).all()
+
+    back_url = "/venues"
+    if from_param == "reviews":
+        back_url = "/reviews"
+
+    return templates.TemplateResponse(
+        "venue_detail.html",
+        {
+            "request": request,
+            "venue": venue,
+            "reviews": reviews,
+            "title": venue.name,
+            "back_url": back_url,
+            "msg": msg,
+        },
+    )
+
+
+# ---------------------------------------------------------
+# REVIEWS LIST
+# ---------------------------------------------------------
+@app.get("/reviews", response_class=HTMLResponse)
+def list_reviews(
+    request: Request,
+    q: Optional[str] = None,
+    sort: Optional[str] = None,
+    msg: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Review).join(models.Venue)
+
+    search_query = ""
+    if q:
+        search_query = q.strip()
+        if search_query:
+            query = query.filter(models.Venue.name.ilike(f"%{search_query}%"))
+
+    if sort == "high":
+        query = query.order_by(models.Review.total_score.desc())
+    elif sort == "low":
+        query = query.order_by(models.Review.total_score.asc())
+    else:
+        query = query.order_by(models.Review.visit_date.desc())
+
+    reviews = query.all()
+
+    return templates.TemplateResponse(
+        "reviews.html",
+        {
+            "request": request,
+            "reviews": reviews,
+            "title": "Reviews",
+            "search_query": search_query,
+            "sort": sort,
+            "msg": msg,
+            "back_url": "/",
+        },
+    )
+
+
+# ---------------------------------------------------------
+# ADD REVIEW (FORM)
+# ---------------------------------------------------------
+@app.get("/reviews/new", response_class=HTMLResponse)
+def new_review_form(request: Request):
+    return templates.TemplateResponse(
+        "new_review.html",
+        {"request": request, "title": "Add Review", "back_url": "/"},
+    )
+
+
+# ---------------------------------------------------------
 # ADD REVIEW (SUBMIT)
 # ---------------------------------------------------------
 @app.post("/reviews/new")
@@ -87,20 +219,21 @@ def add_review(
     notes: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    venue_name_clean = venue_name.strip()
-    location_clean = location.strip()
+    visit = date.fromisoformat(visit_date)
+    if visit > date.today():
+        return RedirectResponse("/reviews/new?msg=futuredate", status_code=303)
 
     venue = (
         db.query(models.Venue)
         .filter(
-            func.lower(models.Venue.name) == venue_name_clean.lower(),
-            func.lower(models.Venue.location) == location_clean.lower(),
+            func.lower(models.Venue.name) == venue_name.strip().lower(),
+            func.lower(models.Venue.location) == location.strip().lower(),
         )
         .first()
     )
 
     if venue:
-        existing = (
+        dup = (
             db.query(models.Review)
             .filter(
                 models.Review.identity_pin == identity_pin,
@@ -109,29 +242,14 @@ def add_review(
             )
             .first()
         )
-
-        if existing:
+        if dup:
             return templates.TemplateResponse(
                 "duplicate_prompt.html",
                 {
                     "request": request,
-                    "existing_review": existing,
+                    "existing_review": dup,
                     "venue_id": venue.id,
                     "visit_date": visit_date,
-                    "form_data": {
-                        "venue_name": venue_name,
-                        "location": location,
-                        "visit_date": visit_date,
-                        "reviewer_name": reviewer_name,
-                        "identity_pin": identity_pin,
-                        "coffee": coffee,
-                        "cost": cost,
-                        "service": service,
-                        "hygiene": hygiene,
-                        "ambience": ambience,
-                        "food": food,
-                        "notes": notes,
-                    },
                 },
             )
 
@@ -144,32 +262,32 @@ def add_review(
 
     with db.begin():
         if not venue:
-            venue = models.Venue(name=venue_name_clean, location=location_clean)
+            venue = models.Venue(name=venue_name.strip(), location=location.strip())
             db.add(venue)
             db.flush()
 
-        review = models.Review(
-            identity_pin=identity_pin.strip(),
-            reviewer_name=reviewer_name.strip(),
-            venue_id=venue.id,
-            venue_name_raw=venue.name,
-            venue_location_raw=venue.location,
-            visit_date=visit_date,
-            coffee=coffee,
-            cost=cost,
-            service=service,
-            hygiene=hygiene,
-            ambience=ambience,
-            food=food,
-            total_score=total_score,
-            category_count=category_count,
-            notes=notes.strip(),
+        db.add(
+            models.Review(
+                identity_pin=identity_pin.strip(),
+                reviewer_name=reviewer_name.strip(),
+                venue_id=venue.id,
+                venue_name_raw=venue.name,
+                venue_location_raw=venue.location,
+                visit_date=visit_date,
+                coffee=coffee,
+                cost=cost,
+                service=service,
+                hygiene=hygiene,
+                ambience=ambience,
+                food=food,
+                total_score=total_score,
+                category_count=category_count,
+                notes=notes.strip(),
+            )
         )
-        db.add(review)
 
     update_venue_averages(db, venue.id)
-
-    return RedirectResponse(url="/reviews", status_code=303)
+    return RedirectResponse("/reviews", status_code=303)
 
 
 # ---------------------------------------------------------
@@ -192,11 +310,8 @@ def duplicate_update(
     db: Session = Depends(get_db),
 ):
     r = db.query(models.Review).filter(models.Review.id == existing_review_id).first()
-    if not r:
-        return RedirectResponse(url="/reviews?msg=notfound", status_code=303)
-
-    if r.identity_pin != identity_pin:
-        return RedirectResponse(url="/reviews?msg=denied", status_code=303)
+    if not r or r.identity_pin != identity_pin:
+        return RedirectResponse("/reviews?msg=denied", status_code=303)
 
     if food == 0:
         r.total_score = coffee + cost + service + hygiene + ambience
@@ -218,4 +333,12 @@ def duplicate_update(
     db.commit()
     update_venue_averages(db, venue_id)
 
-    return RedirectResponse(url="/reviews?msg=updated", status_code=303)
+    return RedirectResponse("/reviews?msg=updated", status_code=303)
+
+
+# ---------------------------------------------------------
+# DUPLICATE CANCEL
+# ---------------------------------------------------------
+@app.post("/reviews/duplicate-cancel")
+def duplicate_cancel():
+    return RedirectResponse("/reviews/new", status_code=303)
