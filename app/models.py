@@ -11,6 +11,10 @@ class Venue(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     location = Column(String, nullable=False)
+
+    # NEW: used to distinguish branches
+    postcode = Column(String, nullable=True)
+
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -25,7 +29,6 @@ class Venue(Base):
     avg_food = Column(Float, nullable=True)
     avg_total_score = Column(Float, nullable=True)
 
-    # Relationship helper
     reviews = relationship("Review", back_populates="venue")
 
 
@@ -55,7 +58,6 @@ class Review(Base):
     photo_path = Column(String, nullable=True)
     reviewer_name = Column(String, nullable=False)
     identity_pin = Column(String, nullable=False)
-
 
     visit_date = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

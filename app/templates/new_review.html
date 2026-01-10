@@ -37,6 +37,24 @@
                 class="w-full rounded-lg p-3 bg-[#6d4c41] text-[#f7f2e9] placeholder-[#d8cfc4] shadow"/>
         </div>
 
+        <!-- LOCATION PICK (current location) -->
+        <div class="bg-[#6d4c41] rounded-xl shadow p-4 space-y-2">
+            <p class="text-[#f7f2e9] text-sm font-semibold">Branch location</p>
+
+            <button type="button"
+                    id="useLocationBtn"
+                    class="w-full bg-[#4b3621] text-[#f7f2e9] py-2 rounded-lg shadow">
+                Use my current location
+            </button>
+
+            <p id="locationStatus" class="text-[#e8dfd1] text-xs"></p>
+
+            <input type="hidden" name="venue_lat" id="venue_lat"
+                   value="{{ form_data.venue_lat if form_data and form_data.venue_lat is not none else '' }}">
+            <input type="hidden" name="venue_lng" id="venue_lng"
+                   value="{{ form_data.venue_lng if form_data and form_data.venue_lng is not none else '' }}">
+        </div>
+
         <!-- SCORES -->
         <div class="bg-[#6d4c41] rounded-xl shadow p-4 space-y-3">
             <h3 class="text-[#f7f2e9] text-lg font-semibold mb-1">Scores</h3>
@@ -64,7 +82,7 @@
                         <option value="5" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 5 %}selected{% endif %}>5</option>
                         <option value="4" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 4 %}selected{% endif %}>4</option>
                         <option value="3" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 3 %}selected{% endif %}>3</option>
-                        <option value="2" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 2 %}selected{% endif %}>2</option>
+                        <option value="2" {% if formfform_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 2 %}selected{% endif %}>2</option>
                         <option value="1" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 1 %}selected{% endif %}>1</option>
                         <option value="0" {% if form_data and form_data.food is defined and form_data.food is not none and (form_data.food|int) == 0 %}selected{% endif %}>N/A</option>
                     </select>
@@ -132,12 +150,16 @@ document.addEventListener("DOMContentLoaded", function () {
     const pinError = document.getElementById("pin-error");
     const unlockBtn = document.getElementById("unlockBtn");
 
+    const venueLat = document.getElementById("venue_lat");
+    const venueLng = document.getElementById("venue_lng");
+    const useLocationBtn = document.getElementById("useLocationBtn");
+    const locationStatus = document.getElementById("locationStatus");
+
     const visitDateInput = document.querySelector('input[name="visit_date"]');
     if (visitDateInput) {
         const today = new Date().toISOString().split("T")[0];
         visitDateInput.max = today;
 
-        // If empty, default to today (UI convenience)
         if (!visitDateInput.value) {
             visitDateInput.value = today;
         }
@@ -151,12 +173,9 @@ document.addEventListener("DOMContentLoaded", function () {
         localStorage.setItem("identity_pin", storedPIN);
     }
 
-    // Always ensure hidden pin field is populated (don't rely on server)
     if (pinField) pinField.value = storedPIN;
-
     if (pinDisplay) pinDisplay.textContent = storedPIN;
 
-    // If reviewer name is already in localStorage and the field is empty, populate it
     if (storedName && nameField && !nameField.value) {
         nameField.value = storedName;
     }
@@ -191,6 +210,40 @@ document.addEventListener("DOMContentLoaded", function () {
             pinError.classList.remove("hidden");
         }
     });
+
+    function showLocationStatus(msg) {
+        if (locationStatus) locationStatus.textContent = msg;
+    }
+
+    // If already filled (edit or previous attempt)
+    if (venueLat && venueLng && venueLat.value && venueLng.value) {
+        showLocationStatus("Location saved for this review.");
+    }
+
+    if (useLocationBtn) {
+        useLocationBtn.addEventListener("click", function () {
+            showLocationStatus("Getting your location...");
+
+            if (!navigator.geolocation) {
+                showLocationStatus("Location not supported on this device.");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                function (pos) {
+                    const lat = pos.coords.latitude.toString();
+                    const lng = pos.coords.longitude.toString();
+                    venueLat.value = lat;
+                    venueLng.value = lng;
+                    showLocationStatus("Location saved for this review.");
+                },
+                function () {
+                    showLocationStatus("Could not get location. Check permissions.");
+                },
+                { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+            );
+        });
+    }
 });
 
 function validateNameAndStore() {
