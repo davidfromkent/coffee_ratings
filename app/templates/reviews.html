@@ -26,8 +26,11 @@
 </h2>
 
 <!-- Search and sort controls -->
-<form method="get" action="/reviews" class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
-    <input type="text"
+<form method="get"
+      action="/reviews"
+      class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+
+    <input type="search"
            name="q"
            placeholder="Search café name"
            value="{{ search_query or '' }}"
@@ -42,6 +45,9 @@
         <option value="low" {% if sort == 'low' %}selected{% endif %}>Lowest rated</option>
         <option value="new" {% if sort == 'new' %}selected{% endif %}>Newest</option>
     </select>
+
+    <!-- Required for mobile Enter / Go to submit -->
+    <button type="submit" class="hidden"></button>
 </form>
 
 {% if reviews|length == 0 %}
