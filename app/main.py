@@ -10,7 +10,10 @@ from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from datetime import date
 import math
 import re
-import requests
+import json
+import urllib.request
+import urllib.parse
+
 
 from .dependencies import get_db
 from . import models
@@ -91,24 +94,34 @@ def _to_float(val: Optional[str]) -> Optional[float]:
 
 
 def _reverse_geocode_postcode(lat: float, lng: float) -> Optional[str]:
+    """
+    Reverse geocode to UK postcode using postcodes.io
+    Uses Python stdlib only (no external deps).
+    """
     try:
-        url = "https://api.postcodes.io/postcodes"
-        params = {"lon": lng, "lat": lat}
-        r = requests.get(url, params=params, timeout=6)
-        if r.status_code != 200:
-            return None
-        data = r.json()
+        params = urllib.parse.urlencode({"lon": lng, "lat": lat})
+        url = f"https://api.postcodes.io/postcodes?{params}"
+
+        with urllib.request.urlopen(url, timeout=6) as resp:
+            if resp.status != 200:
+                return None
+            data = json.loads(resp.read().decode("utf-8"))
+
         result = (data or {}).get("result") or []
         if not result:
             return None
+
         pc = result[0].get("postcode")
         if not pc:
             return None
+
         pc = pc.strip().upper()
         pc = re.sub(r"\s+", " ", pc)
         return pc
+
     except Exception:
         return None
+
 
 
 
