@@ -83,8 +83,18 @@ def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> floa
     )
     c = 2 * math.asin(math.sqrt(a))
     km = r_km * c
-    miles = km * 0.621371
-    return miles
+    return km * 0.621371
+
+
+def _to_float(val: Optional[str]) -> Optional[float]:
+    if val is None:
+        return None
+    if isinstance(val, str) and val.strip() == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
 
 
 # ---------------------------------------------------------
@@ -131,24 +141,20 @@ def list_venues(
     near_me: int = 0,
     radius: int = 5,
     sort: str = "distance",
-    lat: Optional[float] = None,
-    lng: Optional[float] = None,
+    lat: Optional[str] = None,
+    lng: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     venues = db.query(models.Venue).all()
 
     near_me_enabled = bool(near_me)
 
-    # Default sort behaviour:
-    # - if near_me enabled, default to distance
-    # - otherwise default to rating (keeps it useful)
     if not sort:
         sort = "distance" if near_me_enabled else "rating"
 
-    user_lat = lat
-    user_lng = lng
+    user_lat = _to_float(lat)
+    user_lng = _to_float(lng)
 
-    # Attach distance_miles where possible
     for v in venues:
         setattr(v, "distance_miles", None)
         if near_me_enabled and user_lat is not None and user_lng is not None:
@@ -160,7 +166,6 @@ def list_venues(
                 except Exception:
                     v.distance_miles = None
 
-    # If near_me enabled and we have user coords, filter to venues with coords and within radius
     if near_me_enabled and user_lat is not None and user_lng is not None:
         filtered = []
         for v in venues:
@@ -170,7 +175,6 @@ def list_venues(
                 filtered.append(v)
         venues = filtered
 
-    # Sorting
     if near_me_enabled and sort == "distance":
         venues = sorted(
             venues,
@@ -182,7 +186,6 @@ def list_venues(
             key=lambda v: (v.avg_cost is None, -(v.avg_cost or 0), -(v.avg_total_score or 0), v.name.lower()),
         )
     else:
-        # rating
         venues = sorted(
             venues,
             key=lambda v: (v.avg_total_score is None, -(v.avg_total_score or 0), v.name.lower()),
