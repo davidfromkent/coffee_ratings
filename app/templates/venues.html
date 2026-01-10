@@ -7,28 +7,22 @@
     Venues
 </h2>
 
-<form method="get" action="/venues"
-      class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+<!-- Search + distance + sort -->
+<form method="get" action="/venues" class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
 
-    <div class="flex items-center gap-2">
-        <input type="hidden" name="near_me" value="0">
-        <input id="near_me"
-               type="checkbox"
-               name="near_me"
-               value="1"
-               {% if near_me %}checked{% endif %}
-               class="h-4 w-4">
-        <label for="near_me" class="text-sm text-[#f7f2e9] select-none">
-            Near me
-        </label>
-    </div>
+    <input type="search"
+           name="q"
+           placeholder="Search venue"
+           value="{{ search_query or '' }}"
+           class="w-full rounded-lg p-2 bg-[#f7f2e9] text-[#4b3621] shadow">
 
+    <!-- Distance filter -->
     <select name="radius"
             id="radiusSelect"
-            class="w-full sm:w-auto rounded-lg p-2 bg-[#6d4c41] text-[#f7f2e9] shadow"
-            {% if not near_me %}disabled{% endif %}>
+            class="w-full sm:w-auto rounded-lg p-2 bg-[#6d4c41] text-[#f7f2e9] shadow">
+        <option value="0" {% if not near_me %}selected{% endif %}>All venues</option>
         {% for r in [1,2,5,10,20] %}
-        <option value="{{ r }}" {% if radius and radius|int == r %}selected{% endif %}>
+        <option value="{{ r }}" {% if near_me and radius and radius|int == r %}selected{% endif %}>
             Within {{ r }} mile{% if r != 1 %}s{% endif %}
         </option>
         {% endfor %}
@@ -41,13 +35,14 @@
         <option value="value" {% if sort == "value" %}selected{% endif %}>Sort: Best value</option>
     </select>
 
+    <input type="hidden" name="near_me" id="near_me_field" value="{{ 1 if near_me else 0 }}">
     <input type="hidden" name="lat" id="user_lat" value="{{ user_lat or '' }}">
     <input type="hidden" name="lng" id="user_lng" value="{{ user_lng or '' }}">
 
     <button type="submit" class="hidden"></button>
 
     <button type="button"
-            id="applyNearMeBtn"
+            id="applyBtn"
             class="w-full sm:w-auto bg-[#6d4c41] text-[#f7f2e9] py-2 px-3 rounded-lg shadow hover:bg-[#5d4037]">
         Apply
     </button>
@@ -61,73 +56,82 @@
 
 {% if venues|length == 0 %}
 <p class="text-[#e8dfd1] text-sm">No venues yet.</p>
+
 {% else %}
 <div class="flex flex-col gap-4">
 
-{% for v in venues %}
-<a href="/venues/{{ v.id }}"
-   class="block bg-[#f7f2e9] rounded-xl p-4 shadow hover:bg-white transition">
+    {% for v in venues %}
+    <a href="/venues/{{ v.id }}"
+       class="block bg-[#f7f2e9] rounded-xl p-4 shadow hover:bg-white transition">
 
-    <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-            <h2 class="text-lg font-semibold text-[#4b3621] mb-1">
-                {{ v.name }}
-            </h2>
-            <p class="text-sm text-[#6d5742] mb-2">
-                {{ v.location }}
-            </p>
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <h2 class="text-lg font-semibold text-[#4b3621] mb-1">
+                    {{ v.name }}
+                </h2>
+
+                <p class="text-sm text-[#6d5742] mb-2">
+                    {{ v.location }}
+                </p>
+            </div>
+
+            {% if near_me and v.distance_miles is not none %}
+            <div class="shrink-0 text-xs bg-[#6d4c41] text-[#f7f2e9] px-2 py-1 rounded-lg shadow">
+                {{ "%.1f"|format(v.distance_miles) }} mi
+            </div>
+            {% endif %}
         </div>
 
-        {% if near_me and v.distance_miles is not none %}
-        <div class="shrink-0 text-xs bg-[#6d4c41] text-[#f7f2e9] px-2 py-1 rounded-lg shadow">
-            {{ "%.1f"|format(v.distance_miles) }} mi
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center">
+                {{ cups.render_cups(v.avg_total_score or 0) }}
+                <span class="text-[#6d5742] text-sm ml-2">
+                    {{ (v.avg_total_score or 0)|round(1) }}/5
+                </span>
+            </div>
+
+            {% if v.latitude is not none and v.longitude is not none %}
+            <a href="https://www.google.com/maps/dir/?api=1&destination={{ v.latitude }},{{ v.longitude }}"
+               class="text-xs text-[#6d4c41] underline"
+               target="_blank"
+               rel="noopener"
+               onclick="event.stopPropagation();">
+                Directions
+            </a>
+            {% endif %}
         </div>
-        {% endif %}
-    </div>
 
-    <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center">
-            {{ cups.render_cups(v.avg_total_score or 0) }}
-            <span class="text-[#6d5742] text-sm ml-2">
-                {{ (v.avg_total_score or 0)|round(1) }}/5
-            </span>
-        </div>
+    </a>
+    {% endfor %}
 
-        {% if v.latitude is not none and v.longitude is not none %}
-        <a href="https://www.google.com/maps/dir/?api=1&destination={{ v.latitude }},{{ v.longitude }}"
-           class="text-xs text-[#6d4c41] underline"
-           target="_blank"
-           rel="noopener"
-           onclick="event.stopPropagation();">
-            Directions
-        </a>
-        {% endif %}
-    </div>
-
-</a>
-{% endfor %}
 </div>
 {% endif %}
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const nearMeCheckbox = document.getElementById("near_me");
+    const radiusSelect = document.getElementById("radiusSelect");
+    const nearMeField = document.getElementById("near_me_field");
     const latField = document.getElementById("user_lat");
     const lngField = document.getElementById("user_lng");
-    const applyBtn = document.getElementById("applyNearMeBtn");
-    const radiusSelect = document.getElementById("radiusSelect");
+    const applyBtn = document.getElementById("applyBtn");
     const form = applyBtn.closest("form");
 
-    function setRadiusDisabledState() {
-        radiusSelect.disabled = !nearMeCheckbox.checked;
+    function setNearMeModeFromRadius() {
+        const radius = (radiusSelect.value || "0").trim();
+        if (radius === "0") {
+            nearMeField.value = "0";
+        } else {
+            nearMeField.value = "1";
+        }
     }
 
-    setRadiusDisabledState();
-
-    nearMeCheckbox.addEventListener("change", setRadiusDisabledState);
+    setNearMeModeFromRadius();
 
     applyBtn.addEventListener("click", function () {
-        if (!nearMeCheckbox.checked) {
+        setNearMeModeFromRadius();
+
+        // All venues: clear coords and submit
+        if (nearMeField.value === "0") {
             sessionStorage.removeItem("user_lat");
             sessionStorage.removeItem("user_lng");
             latField.value = "";
@@ -136,9 +140,9 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // Near me mode: reuse cached coords if we have them
         const cachedLat = sessionStorage.getItem("user_lat");
         const cachedLng = sessionStorage.getItem("user_lng");
-
         if (cachedLat && cachedLng) {
             latField.value = cachedLat;
             lngField.value = cachedLng;
@@ -146,6 +150,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // Otherwise fetch coords once
         if (!navigator.geolocation) {
             form.submit();
             return;

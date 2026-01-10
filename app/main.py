@@ -22,9 +22,6 @@ templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
-# ---------------------------------------------------------
-# Helper: Update all average scores for a venue
-# ---------------------------------------------------------
 def update_venue_averages(db, venue_id: int):
     reviews = db.query(models.Review).filter(models.Review.venue_id == venue_id).all()
     venue = db.query(models.Venue).filter(models.Venue.id == venue_id).first()
@@ -59,9 +56,6 @@ def update_venue_averages(db, venue_id: int):
     db.commit()
 
 
-# ---------------------------------------------------------
-# Helper: add or replace ?msg=... on a URL
-# ---------------------------------------------------------
 def _add_msg(url: str, msg: str) -> str:
     parts = urlparse(url or "/reviews")
     q = dict(parse_qsl(parts.query, keep_blank_values=True))
@@ -69,9 +63,6 @@ def _add_msg(url: str, msg: str) -> str:
     return urlunparse((parts.scheme, parts.netloc, parts.path, parts.params, urlencode(q), parts.fragment))
 
 
-# ---------------------------------------------------------
-# Helper: haversine distance in miles
-# ---------------------------------------------------------
 def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r_km = 6371.0088
     to_rad = math.radians
@@ -97,9 +88,6 @@ def _to_float(val: Optional[str]) -> Optional[float]:
         return None
 
 
-# ---------------------------------------------------------
-# DELETE REVIEW
-# ---------------------------------------------------------
 @app.post("/reviews/{review_id}/delete")
 def delete_review(
     request: Request,
@@ -124,33 +112,38 @@ def delete_review(
     return RedirectResponse(_add_msg(referer, "deleted"), status_code=303)
 
 
-# ---------------------------------------------------------
-# HOME
-# ---------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request, "title": "Coffee Ratings"})
 
 
-# ---------------------------------------------------------
-# VENUES LIST (with Near me support)
-# ---------------------------------------------------------
 @app.get("/venues", response_class=HTMLResponse)
 def list_venues(
     request: Request,
+    q: Optional[str] = None,
     near_me: int = 0,
-    radius: int = 5,
-    sort: str = "distance",
+    radius: int = 0,
+    sort: str = "rating",
     lat: Optional[str] = None,
     lng: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    venues = db.query(models.Venue).all()
+    query = db.query(models.Venue)
+
+    search_query = ""
+    if q:
+        search_query = q.strip()
+        if search_query:
+            like = f"%{search_query}%"
+            query = query.filter(or_(models.Venue.name.ilike(like), models.Venue.location.ilike(like)))
+
+    venues = query.all()
+
+    # radius=0 means All venues, force near_me off
+    if radius == 0:
+        near_me = 0
 
     near_me_enabled = bool(near_me)
-
-    if not sort:
-        sort = "distance" if near_me_enabled else "rating"
 
     user_lat = _to_float(lat)
     user_lng = _to_float(lng)
@@ -166,15 +159,10 @@ def list_venues(
                 except Exception:
                     v.distance_miles = None
 
-    if near_me_enabled and user_lat is not None and user_lng is not None:
-        filtered = []
-        for v in venues:
-            if v.distance_miles is None:
-                continue
-            if v.distance_miles <= float(radius):
-                filtered.append(v)
-        venues = filtered
+    if near_me_enabled and user_lat is not None and user_lng is not None and radius > 0:
+        venues = [v for v in venues if v.distance_miles is not None and v.distance_miles <= float(radius)]
 
+    # Sorting
     if near_me_enabled and sort == "distance":
         venues = sorted(
             venues,
@@ -199,17 +187,15 @@ def list_venues(
             "title": "Venues",
             "back_url": "/",
             "near_me": near_me_enabled,
-            "radius": radius,
+            "radius": radius if radius else 0,
             "sort": sort,
             "user_lat": user_lat,
             "user_lng": user_lng,
+            "search_query": search_query,
         },
     )
 
 
-# ---------------------------------------------------------
-# VENUE DETAIL
-# ---------------------------------------------------------
 @app.get("/venues/{venue_id}", response_class=HTMLResponse)
 def venue_detail(
     venue_id: int,
@@ -238,9 +224,6 @@ def venue_detail(
     )
 
 
-# ---------------------------------------------------------
-# REVIEWS LIST
-# ---------------------------------------------------------
 @app.get("/reviews", response_class=HTMLResponse)
 def list_reviews(
     request: Request,
@@ -280,9 +263,6 @@ def list_reviews(
     )
 
 
-# ---------------------------------------------------------
-# ADD REVIEW (FORM)
-# ---------------------------------------------------------
 @app.get("/reviews/new", response_class=HTMLResponse)
 def new_review_form(request: Request):
     return templates.TemplateResponse(
@@ -291,9 +271,6 @@ def new_review_form(request: Request):
     )
 
 
-# ---------------------------------------------------------
-# ADD REVIEW (SUBMIT)
-# ---------------------------------------------------------
 @app.post("/reviews/new")
 def add_review(
     request: Request,
@@ -382,9 +359,6 @@ def add_review(
     return RedirectResponse("/reviews", status_code=303)
 
 
-# ---------------------------------------------------------
-# DUPLICATE UPDATE
-# ---------------------------------------------------------
 @app.post("/reviews/duplicate-update")
 def duplicate_update(
     existing_review_id: int = Form(...),
@@ -428,9 +402,6 @@ def duplicate_update(
     return RedirectResponse("/reviews?msg=updated", status_code=303)
 
 
-# ---------------------------------------------------------
-# DUPLICATE CANCEL
-# ---------------------------------------------------------
 @app.post("/reviews/duplicate-cancel")
 def duplicate_cancel():
     return RedirectResponse("/reviews/new", status_code=303)
