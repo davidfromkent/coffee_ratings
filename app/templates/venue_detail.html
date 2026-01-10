@@ -7,9 +7,20 @@
 <h2 class="text-2xl font-bold text-[#f7f2e9]">
     {{ venue.name }}
 </h2>
-<p class="text-[#e8dfd1] text-sm mb-4">
+<p class="text-[#e8dfd1] text-sm mb-3">
     {{ venue.location }}
 </p>
+
+{% if venue.latitude is not none and venue.longitude is not none %}
+<div class="mb-4">
+    <a href="https://www.google.com/maps/dir/?api=1&destination={{ venue.latitude }},{{ venue.longitude }}"
+       class="w-full block text-center bg-[#6d4c41] text-[#f7f2e9] py-3 rounded-lg font-semibold shadow hover:bg-[#5d4037]"
+       target="_blank"
+       rel="noopener">
+        Directions
+    </a>
+</div>
+{% endif %}
 
 {% if msg == "deleted" %}
 <div class="mb-4 bg-[#6d4c41] text-[#f7f2e9] p-3 rounded-lg shadow text-sm">

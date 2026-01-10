@@ -8,6 +8,7 @@ from sqlalchemy import func, or_
 from typing import Optional
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from datetime import date
+import math
 
 from .dependencies import get_db
 from . import models
@@ -69,6 +70,24 @@ def _add_msg(url: str, msg: str) -> str:
 
 
 # ---------------------------------------------------------
+# Helper: haversine distance in miles
+# ---------------------------------------------------------
+def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r_km = 6371.0088
+    to_rad = math.radians
+    dlat = to_rad(lat2 - lat1)
+    dlon = to_rad(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(to_rad(lat1)) * math.cos(to_rad(lat2)) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
+    km = r_km * c
+    miles = km * 0.621371
+    return miles
+
+
+# ---------------------------------------------------------
 # DELETE REVIEW
 # ---------------------------------------------------------
 @app.post("/reviews/{review_id}/delete")
@@ -104,14 +123,84 @@ def home(request: Request):
 
 
 # ---------------------------------------------------------
-# VENUES LIST
+# VENUES LIST (with Near me support)
 # ---------------------------------------------------------
 @app.get("/venues", response_class=HTMLResponse)
-def list_venues(request: Request, db: Session = Depends(get_db)):
+def list_venues(
+    request: Request,
+    near_me: int = 0,
+    radius: int = 5,
+    sort: str = "distance",
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    db: Session = Depends(get_db),
+):
     venues = db.query(models.Venue).all()
+
+    near_me_enabled = bool(near_me)
+
+    # Default sort behaviour:
+    # - if near_me enabled, default to distance
+    # - otherwise default to rating (keeps it useful)
+    if not sort:
+        sort = "distance" if near_me_enabled else "rating"
+
+    user_lat = lat
+    user_lng = lng
+
+    # Attach distance_miles where possible
+    for v in venues:
+        setattr(v, "distance_miles", None)
+        if near_me_enabled and user_lat is not None and user_lng is not None:
+            if v.latitude is not None and v.longitude is not None:
+                try:
+                    v.distance_miles = _haversine_miles(
+                        float(user_lat), float(user_lng), float(v.latitude), float(v.longitude)
+                    )
+                except Exception:
+                    v.distance_miles = None
+
+    # If near_me enabled and we have user coords, filter to venues with coords and within radius
+    if near_me_enabled and user_lat is not None and user_lng is not None:
+        filtered = []
+        for v in venues:
+            if v.distance_miles is None:
+                continue
+            if v.distance_miles <= float(radius):
+                filtered.append(v)
+        venues = filtered
+
+    # Sorting
+    if near_me_enabled and sort == "distance":
+        venues = sorted(
+            venues,
+            key=lambda v: (v.distance_miles is None, v.distance_miles if v.distance_miles is not None else 1e9),
+        )
+    elif sort == "value":
+        venues = sorted(
+            venues,
+            key=lambda v: (v.avg_cost is None, -(v.avg_cost or 0), -(v.avg_total_score or 0), v.name.lower()),
+        )
+    else:
+        # rating
+        venues = sorted(
+            venues,
+            key=lambda v: (v.avg_total_score is None, -(v.avg_total_score or 0), v.name.lower()),
+        )
+
     return templates.TemplateResponse(
         "venues.html",
-        {"request": request, "venues": venues, "title": "Venues", "back_url": "/"},
+        {
+            "request": request,
+            "venues": venues,
+            "title": "Venues",
+            "back_url": "/",
+            "near_me": near_me_enabled,
+            "radius": radius,
+            "sort": sort,
+            "user_lat": user_lat,
+            "user_lng": user_lng,
+        },
     )
 
 
