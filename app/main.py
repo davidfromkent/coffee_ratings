@@ -10,7 +10,7 @@ from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from datetime import date
 import math
 import re
-import httpx
+import requests
 
 from .dependencies import get_db
 from . import models
@@ -91,14 +91,10 @@ def _to_float(val: Optional[str]) -> Optional[float]:
 
 
 def _reverse_geocode_postcode(lat: float, lng: float) -> Optional[str]:
-    """
-    Reverse geocode to UK postcode using postcodes.io (no API key).
-    Returns normalized postcode like "CT14 6AD", or None.
-    """
     try:
         url = "https://api.postcodes.io/postcodes"
         params = {"lon": lng, "lat": lat}
-        r = httpx.get(url, params=params, timeout=6.0)
+        r = requests.get(url, params=params, timeout=6)
         if r.status_code != 200:
             return None
         data = r.json()
@@ -113,6 +109,7 @@ def _reverse_geocode_postcode(lat: float, lng: float) -> Optional[str]:
         return pc
     except Exception:
         return None
+
 
 
 @app.post("/reviews/{review_id}/delete")
