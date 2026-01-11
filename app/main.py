@@ -14,7 +14,6 @@ import json
 import urllib.request
 import urllib.parse
 
-
 from .dependencies import get_db
 from . import models
 from .database import engine
@@ -121,8 +120,6 @@ def _reverse_geocode_postcode(lat: float, lng: float) -> Optional[str]:
 
     except Exception:
         return None
-
-
 
 
 @app.post("/reviews/{review_id}/delete")
@@ -301,10 +298,10 @@ def list_reviews(
 
 
 @app.get("/reviews/new", response_class=HTMLResponse)
-def new_review_form(request: Request, msg: Optional[str] = None):
+def new_review_form(request: Request):
     return templates.TemplateResponse(
         "new_review.html",
-        {"request": request, "title": "Add Review", "back_url": "/", "msg": msg},
+        {"request": request, "title": "Add Review", "back_url": "/"},
     )
 
 
@@ -334,7 +331,7 @@ def add_review(
     venue_name_clean = venue_name.strip()
     location_clean = location.strip()
 
-    # Parse lat/lng if provided by "Use my current location"
+    # Parse lat/lng if provided
     lat_val = None
     lng_val = None
     try:
@@ -349,7 +346,7 @@ def add_review(
     if lat_val is not None and lng_val is not None:
         postcode = _reverse_geocode_postcode(lat_val, lng_val)
 
-    # Find candidates by name + location (in case we need to detect ambiguity)
+    # Find candidates by name + location
     matches = (
         db.query(models.Venue)
         .filter(
@@ -361,7 +358,7 @@ def add_review(
 
     venue = None
 
-    # Prefer exact match by name + postcode if we have a postcode
+    # Prefer match by name + postcode if we have a postcode
     if postcode:
         venue = (
             db.query(models.Venue)
@@ -376,7 +373,7 @@ def add_review(
     if not venue and not postcode and len(matches) == 1:
         venue = matches[0]
 
-    # If ambiguous and user didn't provide location capture, send them back
+    # If ambiguous and no postcode, send back to form
     if not venue and not postcode and len(matches) > 1:
         return templates.TemplateResponse(
             "new_review.html",
@@ -404,7 +401,7 @@ def add_review(
             },
         )
 
-    # Duplicate check only if we already know which venue we'll use
+    # Duplicate check only if we know the venue
     if venue:
         dup = (
             db.query(models.Review)
@@ -433,47 +430,48 @@ def add_review(
         total_score = coffee + cost + service + hygiene + ambience + food
         category_count = 6
 
-    with db.begin():
-        # Create venue only when we're definitely going to save the review
-        if not venue:
-            venue = models.Venue(
-                name=venue_name_clean,
-                location=location_clean,
-                postcode=postcode,
-                latitude=lat_val,
-                longitude=lng_val,
-                created_by=(identity_pin.strip() if identity_pin else None),
-            )
-            db.add(venue)
-            db.flush()
-        else:
-            # If we have postcode/coords and the venue is missing them, fill them in
-            if postcode and getattr(venue, "postcode", None) is None:
-                venue.postcode = postcode
-            if lat_val is not None and getattr(venue, "latitude", None) is None:
-                venue.latitude = lat_val
-            if lng_val is not None and getattr(venue, "longitude", None) is None:
-                venue.longitude = lng_val
-
-        db.add(
-            models.Review(
-                identity_pin=identity_pin.strip(),
-                reviewer_name=reviewer_name.strip(),
-                venue_id=venue.id,
-                venue_name_raw=venue.name,
-                venue_location_raw=venue.location,
-                visit_date=visit_date,
-                coffee=coffee,
-                cost=cost,
-                service=service,
-                hygiene=hygiene,
-                ambience=ambience,
-                food=food,
-                total_score=total_score,
-                category_count=category_count,
-                notes=notes.strip(),
-            )
+    # Create venue only when we're definitely saving the review
+    if not venue:
+        venue = models.Venue(
+            name=venue_name_clean,
+            location=location_clean,
+            postcode=postcode,
+            latitude=lat_val,
+            longitude=lng_val,
+            created_by=(identity_pin.strip() if identity_pin else None),
         )
+        db.add(venue)
+        db.flush()
+    else:
+        # Fill missing postcode/coords if we have them
+        if postcode and getattr(venue, "postcode", None) is None:
+            venue.postcode = postcode
+        if lat_val is not None and getattr(venue, "latitude", None) is None:
+            venue.latitude = lat_val
+        if lng_val is not None and getattr(venue, "longitude", None) is None:
+            venue.longitude = lng_val
+
+    db.add(
+        models.Review(
+            identity_pin=identity_pin.strip(),
+            reviewer_name=reviewer_name.strip(),
+            venue_id=venue.id,
+            venue_name_raw=venue.name,
+            venue_location_raw=venue.location,
+            visit_date=visit_date,
+            coffee=coffee,
+            cost=cost,
+            service=service,
+            hygiene=hygiene,
+            ambience=ambience,
+            food=food,
+            total_score=total_score,
+            category_count=category_count,
+            notes=notes.strip(),
+        )
+    )
+
+    db.commit()
 
     update_venue_averages(db, venue.id)
     return RedirectResponse("/reviews", status_code=303)
