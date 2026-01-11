@@ -1,3 +1,6 @@
+# Coffee Ratings App - main.py
+# Version: 0.9.0 (2026-01-11)  # increment this on every change
+
 from fastapi import FastAPI, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -120,6 +123,14 @@ def _reverse_geocode_postcode(lat: float, lng: float) -> Optional[str]:
 
     except Exception:
         return None
+
+
+def _compute_total_and_count(
+    coffee: int, cost: int, service: int, hygiene: int, ambience: int, food: int
+) -> tuple[int, int]:
+    if food == 0:
+        return coffee + cost + service + hygiene + ambience, 5
+    return coffee + cost + service + hygiene + ambience + food, 6
 
 
 @app.post("/reviews/{review_id}/delete")
@@ -423,12 +434,7 @@ def add_review(
                 },
             )
 
-    if food == 0:
-        total_score = coffee + cost + service + hygiene + ambience
-        category_count = 5
-    else:
-        total_score = coffee + cost + service + hygiene + ambience + food
-        category_count = 6
+    total_score, category_count = _compute_total_and_count(coffee, cost, service, hygiene, ambience, food)
 
     # Create venue only when we're definitely saving the review
     if not venue:
@@ -472,9 +478,214 @@ def add_review(
     )
 
     db.commit()
-
     update_venue_averages(db, venue.id)
     return RedirectResponse("/reviews", status_code=303)
+
+
+# ---------------------------------------------------------
+# EDIT REVIEW (FIXES the 404 Not Found on /reviews/{id}/edit)
+# ---------------------------------------------------------
+@app.get("/reviews/{review_id}/edit", response_class=HTMLResponse)
+def edit_review_page(
+    request: Request,
+    review_id: int,
+    db: Session = Depends(get_db),
+):
+    r = db.query(models.Review).filter(models.Review.id == review_id).first()
+    if not r:
+        return RedirectResponse("/reviews?msg=notfound", status_code=303)
+
+    # We show what the user typed historically, not necessarily the current venue record
+    form_data = {
+        "venue_name": r.venue_name_raw or "",
+        "location": r.venue_location_raw or "",
+        "visit_date": str(r.visit_date) if r.visit_date else "",
+        "reviewer_name": r.reviewer_name or "",
+        "identity_pin": "",  # JS fills from localStorage
+        "coffee": r.coffee,
+        "cost": r.cost,
+        "service": r.service,
+        "hygiene": r.hygiene,
+        "ambience": r.ambience,
+        "food": r.food,
+        "notes": r.notes or "",
+        "venue_lat": "",
+        "venue_lng": "",
+    }
+
+    return templates.TemplateResponse(
+        "new_review.html",
+        {
+            "request": request,
+            "title": "Edit Review",
+            "back_url": "/reviews",
+            "is_edit": True,
+            "form_action": f"/reviews/{review_id}/edit",
+            "existing_review_id": review_id,
+            "form_data": form_data,
+        },
+    )
+
+
+@app.post("/reviews/{review_id}/edit")
+def edit_review_save(
+    request: Request,
+    review_id: int,
+    venue_name: str = Form(...),
+    location: str = Form(...),
+    visit_date: str = Form(...),
+    reviewer_name: str = Form(...),
+    identity_pin: str = Form(...),
+    coffee: int = Form(...),
+    cost: int = Form(...),
+    service: int = Form(...),
+    hygiene: int = Form(...),
+    ambience: int = Form(...),
+    food: int = Form(...),
+    notes: str = Form(""),
+    venue_lat: str = Form(""),
+    venue_lng: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    r = db.query(models.Review).filter(models.Review.id == review_id).first()
+    if not r:
+        return RedirectResponse("/reviews?msg=notfound", status_code=303)
+
+    # Only allow the device that created it to edit
+    if (identity_pin or "").strip() != (r.identity_pin or "").strip():
+        return RedirectResponse("/reviews?msg=denied", status_code=303)
+
+    visit = date.fromisoformat(visit_date)
+    if visit > date.today():
+        return RedirectResponse(f"/reviews/{review_id}/edit?msg=futuredate", status_code=303)
+
+    venue_name_clean = venue_name.strip()
+    location_clean = location.strip()
+
+    # Parse lat/lng if provided
+    lat_val = None
+    lng_val = None
+    try:
+        if (venue_lat or "").strip() and (venue_lng or "").strip():
+            lat_val = float(venue_lat)
+            lng_val = float(venue_lng)
+    except Exception:
+        lat_val = None
+        lng_val = None
+
+    postcode = None
+    if lat_val is not None and lng_val is not None:
+        postcode = _reverse_geocode_postcode(lat_val, lng_val)
+
+    # Find candidates by name + location
+    matches = (
+        db.query(models.Venue)
+        .filter(
+            func.lower(models.Venue.name) == venue_name_clean.lower(),
+            func.lower(models.Venue.location) == location_clean.lower(),
+        )
+        .all()
+    )
+
+    venue = None
+
+    # Prefer match by name + postcode if we have a postcode
+    if postcode:
+        venue = (
+            db.query(models.Venue)
+            .filter(
+                func.lower(models.Venue.name) == venue_name_clean.lower(),
+                func.lower(models.Venue.postcode) == postcode.lower(),
+            )
+            .first()
+        )
+
+    # If no postcode and only one match exists, use it
+    if not venue and not postcode and len(matches) == 1:
+        venue = matches[0]
+
+    # If ambiguous and no postcode, send back to edit form
+    if not venue and not postcode and len(matches) > 1:
+        form_data = {
+            "venue_name": venue_name,
+            "location": location,
+            "visit_date": visit_date,
+            "reviewer_name": reviewer_name,
+            "identity_pin": "",  # JS
+            "coffee": coffee,
+            "cost": cost,
+            "service": service,
+            "hygiene": hygiene,
+            "ambience": ambience,
+            "food": food,
+            "notes": notes,
+            "venue_lat": venue_lat,
+            "venue_lng": venue_lng,
+        }
+        return templates.TemplateResponse(
+            "new_review.html",
+            {
+                "request": request,
+                "title": "Edit Review",
+                "back_url": "/reviews",
+                "is_edit": True,
+                "form_action": f"/reviews/{review_id}/edit",
+                "existing_review_id": review_id,
+                "form_data": form_data,
+                "msg": "need_location",
+            },
+        )
+
+    old_venue_id = r.venue_id
+
+    # Create venue only when we are saving
+    if not venue:
+        venue = models.Venue(
+            name=venue_name_clean,
+            location=location_clean,
+            postcode=postcode,
+            latitude=lat_val,
+            longitude=lng_val,
+            created_by=(identity_pin.strip() if identity_pin else None),
+        )
+        db.add(venue)
+        db.flush()
+    else:
+        # Fill missing postcode/coords if we have them
+        if postcode and getattr(venue, "postcode", None) is None:
+            venue.postcode = postcode
+        if lat_val is not None and getattr(venue, "latitude", None) is None:
+            venue.latitude = lat_val
+        if lng_val is not None and getattr(venue, "longitude", None) is None:
+            venue.longitude = lng_val
+
+    total_score, category_count = _compute_total_and_count(coffee, cost, service, hygiene, ambience, food)
+
+    # Update review
+    r.venue_id = venue.id
+    r.venue_name_raw = venue.name
+    r.venue_location_raw = venue.location
+    r.reviewer_name = reviewer_name.strip()
+    r.visit_date = visit_date
+
+    r.coffee = coffee
+    r.cost = cost
+    r.service = service
+    r.hygiene = hygiene
+    r.ambience = ambience
+    r.food = food
+    r.total_score = total_score
+    r.category_count = category_count
+    r.notes = notes.strip()
+
+    db.commit()
+
+    # Update averages for new venue (and old one if changed)
+    update_venue_averages(db, venue.id)
+    if old_venue_id and old_venue_id != venue.id:
+        update_venue_averages(db, old_venue_id)
+
+    return RedirectResponse("/reviews?msg=updated", status_code=303)
 
 
 @app.post("/reviews/duplicate-update")
@@ -497,12 +708,10 @@ def duplicate_update(
     if not r or r.identity_pin != identity_pin:
         return RedirectResponse("/reviews?msg=denied", status_code=303)
 
-    if food == 0:
-        r.total_score = coffee + cost + service + hygiene + ambience
-        r.category_count = 5
-    else:
-        r.total_score = coffee + cost + service + hygiene + ambience + food
-        r.category_count = 6
+    total_score, category_count = _compute_total_and_count(coffee, cost, service, hygiene, ambience, food)
+
+    r.total_score = total_score
+    r.category_count = category_count
 
     r.reviewer_name = reviewer_name.strip()
     r.visit_date = visit_date
