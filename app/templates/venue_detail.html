@@ -7,20 +7,9 @@
 <h2 class="text-2xl font-bold text-[#f7f2e9]">
     {{ venue.name }}
 </h2>
-<p class="text-[#e8dfd1] text-sm mb-3">
+<p class="text-[#e8dfd1] text-sm mb-4">
     {{ venue.location }}
 </p>
-
-{% if venue.latitude is not none and venue.longitude is not none %}
-<div class="mb-4">
-    <a href="https://www.google.com/maps/dir/?api=1&destination={{ venue.latitude }},{{ venue.longitude }}"
-       class="w-full block text-center bg-[#6d4c41] text-[#f7f2e9] py-3 rounded-lg font-semibold shadow hover:bg-[#5d4037]"
-       target="_blank"
-       rel="noopener">
-        Directions
-    </a>
-</div>
-{% endif %}
 
 {% if msg == "deleted" %}
 <div class="mb-4 bg-[#6d4c41] text-[#f7f2e9] p-3 rounded-lg shadow text-sm">
@@ -41,7 +30,6 @@
     <h3 class="text-lg font-semibold mb-4">Average scores</h3>
 
     <div class="grid grid-cols-2 gap-x-6 gap-y-6">
-
         <div>
             <p class="text-sm text-[#6d5742] mb-1">Coffee</p>
             {{ cups.render_cups(venue.avg_coffee or 0) }}
@@ -71,7 +59,6 @@
             <p class="text-sm text-[#6d5742] mb-1">Food</p>
             {{ cups.render_cups(venue.avg_food or 0) }}
         </div>
-
     </div>
 </div>
 
@@ -90,29 +77,39 @@
 
 {% if venue.reviews|length == 0 %}
 <p class="text-[#e8dfd1] text-sm mb-4">No reviews yet.</p>
-
 {% else %}
-<div class="flex flex-col gap-4">
 
+<div class="flex flex-col gap-4">
 {% for r in venue.reviews %}
 <div class="bg-[#f7f2e9] rounded-xl p-4 shadow text-[#4b3621]"
      data-review-id="{{ r.id }}"
      data-review-identity-pin="{{ r.identity_pin }}">
 
     <!-- Rating -->
-    <div class="flex items-center gap-2">
-        {% set avg = r.total_score / r.category_count %}
-        {{ cups.render_cups(avg) }}
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+            {% set avg = r.total_score / r.category_count %}
+            {{ cups.render_cups(avg) }}
+        </div>
         <span class="text-sm font-semibold">
             {{ "%.1f"|format(avg) }}
         </span>
     </div>
 
     <!-- Category grid -->
-    <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-2 text-sm text-[#6d5742]">
+    <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-3 text-sm text-[#6d5742]">
         <p>Coffee: {{ r.coffee }}</p>
         <p>Value: {{ r.cost }}</p>
-        ...
+        <p>Service: {{ r.service }}</p>
+        <p>Hygiene: {{ r.hygiene }}</p>
+        <p>Ambience: {{ r.ambience }}</p>
+        <p>
+            {% if r.food == 0 %}
+                Food: N/A
+            {% else %}
+                Food: {{ r.food }}
+            {% endif %}
+        </p>
     </div>
 
     <!-- Notes -->
@@ -127,9 +124,9 @@
             {{ r.reviewer_name }}, {{ d[2] }}/{{ d[1] }}/{{ d[0] }}
         </p>
 
-        <!-- Shown only if this review belongs to this device. -->
+        <!-- Shown only if this review belongs to this device -->
         <div class="my-review-actions hidden flex gap-3 text-xs">
-            <a href="#" data-action="edit" class="text-[#6d4c41] hover:underline">
+            <a href="/reviews/{{ r.id }}/edit" class="text-[#6d4c41] hover:underline">
                 ✏️ Edit
             </a>
 
@@ -144,8 +141,8 @@
 
 </div>
 {% endfor %}
-
 </div>
+
 {% endif %}
 
 {% endblock %}
